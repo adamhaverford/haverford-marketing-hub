@@ -23,6 +23,27 @@ export default async function PlanningPage() {
     )
   }
 
+  const brandIds = brands.map(b => b.id)
+
+  const [{ data: allTopics }, { data: allDesigns }] = await Promise.all([
+    supabase
+      .from('planning_topics')
+      .select('brand_id, status')
+      .in('brand_id', brandIds),
+    supabase
+      .from('planning_designs')
+      .select('brand_id')
+      .in('brand_id', brandIds)
+      .eq('is_current', true),
+  ])
+
+  const brandStats = brands.map(brand => ({
+    ...brand,
+    topicsProposed: (allTopics ?? []).filter(t => t.brand_id === brand.id).length,
+    awaitingApproval: (allTopics ?? []).filter(t => t.brand_id === brand.id && t.status === 'proposed').length,
+    designsUploaded: (allDesigns ?? []).filter(d => d.brand_id === brand.id).length,
+  }))
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -31,8 +52,14 @@ export default async function PlanningPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl">
-        {brands.map(brand => (
-          <BrandCard key={brand.id} brand={brand} />
+        {brandStats.map(brand => (
+          <BrandCard
+            key={brand.id}
+            brand={brand}
+            topicsProposed={brand.topicsProposed}
+            awaitingApproval={brand.awaitingApproval}
+            designsUploaded={brand.designsUploaded}
+          />
         ))}
       </div>
     </div>

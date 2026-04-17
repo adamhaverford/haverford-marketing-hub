@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 async function getAuthedProfile() {
@@ -289,11 +290,13 @@ export async function uploadDesign(data: {
   type: 'evergreen' | 'promotional'
   file_url: string
 }) {
-  const { supabase, profile } = await getAuthedProfile()
+  const { profile } = await getAuthedProfile()
   if (profile.role !== 'marketing') throw new Error('Unauthorized')
 
-  // Mark any existing current designs as not current (version history)
-  await supabase
+  // Use admin client to bypass RLS for the design table writes
+  const admin = createAdminClient()
+
+  await admin
     .from('planning_designs')
     .update({ is_current: false })
     .eq('brand_id', data.brand_id)
@@ -301,7 +304,7 @@ export async function uploadDesign(data: {
     .eq('type', data.type)
     .eq('is_current', true)
 
-  const { error } = await supabase.from('planning_designs').insert({
+  const { error } = await admin.from('planning_designs').insert({
     brand_id: data.brand_id,
     month: data.month,
     type: data.type,

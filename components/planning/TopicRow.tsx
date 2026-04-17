@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { Check, X, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { setTopicStatus, addTopicComment } from '@/lib/actions/planning'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, formatDatetime } from '@/lib/utils'
 
 interface Comment {
   id: string
@@ -39,18 +39,17 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const isDeclined = topic.status === 'declined'
   const isApproved = topic.status === 'approved'
+  const canAct = role === 'stakeholder'
 
   function handleApprove() {
+    if (!canAct) return
     startTransition(async () => {
-      if (isApproved) {
-        await setTopicStatus(topic.id, 'proposed')
-      } else {
-        await setTopicStatus(topic.id, 'approved')
-      }
+      await setTopicStatus(topic.id, isApproved ? 'proposed' : 'approved')
     })
   }
 
   function handleDeclineSubmit() {
+    if (!canAct) return
     startTransition(async () => {
       await setTopicStatus(topic.id, 'declined', declineReason)
       setShowDeclineInput(false)
@@ -59,6 +58,7 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
   }
 
   function handleUndecline() {
+    if (!canAct) return
     startTransition(async () => {
       await setTopicStatus(topic.id, 'proposed')
     })
@@ -98,69 +98,75 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
             Added by {topic.profiles?.full_name ?? 'Unknown'} · <span title={topic.created_at}>{timeAgo(topic.created_at)}</span>
           </p>
 
-          {/* Decline reason */}
-          {isDeclined && topic.action_comment && (
-            <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-              <span className="font-medium">Declined:</span> {topic.action_comment}
+          {/* Audit trail — approved */}
+          {isApproved && (
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+              <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>
+                Approved by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
+                {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
+              </span>
             </div>
           )}
 
-          {/* Approved by */}
-          {isApproved && topic.actioned_by_profile && (
-            <p className="text-xs text-green-600 mt-1.5 font-medium">
-              Approved by {topic.actioned_by_profile.full_name ?? 'Unknown'}
-              {topic.actioned_at && <> · <span title={topic.actioned_at}>{timeAgo(topic.actioned_at)}</span></>}
-            </p>
-          )}
-
-          {/* Declined by */}
-          {isDeclined && topic.actioned_by_profile && (
-            <p className="text-xs text-red-600 mt-1.5 font-medium">
-              Declined by {topic.actioned_by_profile.full_name ?? 'Unknown'}
-              {topic.actioned_at && <> · <span title={topic.actioned_at}>{timeAgo(topic.actioned_at)}</span></>}
-            </p>
+          {/* Audit trail — declined */}
+          {isDeclined && (
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              <X className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>
+                Declined by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
+                {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
+                {topic.action_comment && <> — {topic.action_comment}</>}
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Right: actions */}
+        {/* Right: actions — visible to all, interactive for stakeholder only */}
         <div className="flex items-start gap-2 flex-shrink-0">
-          {/* Approve button (stakeholder only) */}
-          {role === 'stakeholder' && (
-            <button
-              onClick={handleApprove}
-              disabled={isPending || isDeclined}
-              title={isApproved ? 'Undo approval' : 'Approve topic'}
-              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all disabled:opacity-40 ${
-                isApproved
-                  ? 'border-green-500 bg-green-500 text-white hover:bg-green-600 hover:border-green-600'
-                  : 'border-gray-200 text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50'
-              }`}
-            >
-              <Check className="w-4 h-4" />
-            </button>
-          )}
+          {/* Approve button */}
+          <button
+            onClick={handleApprove}
+            disabled={isPending || isDeclined || !canAct}
+            title={
+              !canAct ? 'Only stakeholders can approve topics'
+              : isApproved ? 'Undo approval'
+              : 'Approve topic'
+            }
+            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+              !canAct
+                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                : isApproved
+                ? 'border-green-500 bg-green-500 text-white hover:bg-green-600 hover:border-green-600 disabled:opacity-40'
+                : 'border-gray-200 text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50 disabled:opacity-40'
+            }`}
+          >
+            <Check className="w-4 h-4" />
+          </button>
 
-          {/* Decline button (stakeholder only) */}
-          {role === 'stakeholder' && (
-            <button
-              onClick={() => {
-                if (isDeclined) {
-                  handleUndecline()
-                } else {
-                  setShowDeclineInput(!showDeclineInput)
-                }
-              }}
-              disabled={isPending || isApproved}
-              title={isDeclined ? 'Undo decline' : 'Decline topic'}
-              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all disabled:opacity-40 ${
-                isDeclined
-                  ? 'border-red-500 bg-red-500 text-white hover:bg-red-600 hover:border-red-600'
-                  : 'border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500 hover:bg-red-50'
-              }`}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          {/* Decline button */}
+          <button
+            onClick={() => {
+              if (!canAct) return
+              if (isDeclined) handleUndecline()
+              else setShowDeclineInput(!showDeclineInput)
+            }}
+            disabled={isPending || isApproved || !canAct}
+            title={
+              !canAct ? 'Only stakeholders can decline topics'
+              : isDeclined ? 'Undo decline'
+              : 'Decline topic'
+            }
+            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+              !canAct
+                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                : isDeclined
+                ? 'border-red-500 bg-red-500 text-white hover:bg-red-600 hover:border-red-600 disabled:opacity-40'
+                : 'border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40'
+            }`}
+          >
+            <X className="w-4 h-4" />
+          </button>
 
           {/* Comment toggle */}
           <button
@@ -179,8 +185,8 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
         </div>
       </div>
 
-      {/* Decline input */}
-      {showDeclineInput && (
+      {/* Decline reason input (stakeholder only) */}
+      {showDeclineInput && canAct && (
         <div className="mt-3 flex gap-2">
           <input
             type="text"
@@ -221,12 +227,8 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
                   </div>
                   <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2">
                     <div className="flex items-baseline gap-2 mb-0.5">
-                      <span className="text-xs font-medium text-gray-700">
-                        {c.profiles?.full_name ?? 'Unknown'}
-                      </span>
-                      <span className="text-xs text-gray-400" title={c.created_at}>
-                        {timeAgo(c.created_at)}
-                      </span>
+                      <span className="text-xs font-medium text-gray-700">{c.profiles?.full_name ?? 'Unknown'}</span>
+                      <span className="text-xs text-gray-400" title={c.created_at}>{timeAgo(c.created_at)}</span>
                     </div>
                     <p className="text-sm text-gray-700">{c.comment}</p>
                   </div>
@@ -234,18 +236,13 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
               ))}
             </div>
           )}
-
-          {/* Add comment */}
           <div className="flex gap-2">
             <textarea
               ref={commentInputRef}
               value={commentText}
               onChange={e => setCommentText(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleAddComment()
-                }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment() }
               }}
               placeholder="Add a comment..."
               rows={1}

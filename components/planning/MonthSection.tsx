@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, ChevronUp } from 'lucide-react'
 import TopicRow from './TopicRow'
 import DesignReview from './DesignReview'
 import { addTopic } from '@/lib/actions/planning'

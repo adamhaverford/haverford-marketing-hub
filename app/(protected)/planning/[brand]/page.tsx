@@ -59,7 +59,7 @@ export default async function BrandYearPage({ params }: Props) {
   const topicList = (topics ?? []) as { month: string; type: string; status: string }[]
   const designList = (designs ?? []) as { month: string; type: string; status: string; is_current: boolean }[]
 
-  const monthData = months.map((month, i) => {
+  const monthData = months.map((month) => {
     const [y, m] = month.split('-').map(Number)
     const monthDate = new Date(y, m - 1, 1)
     const isPast = monthDate < new Date(now.getFullYear(), now.getMonth(), 1)

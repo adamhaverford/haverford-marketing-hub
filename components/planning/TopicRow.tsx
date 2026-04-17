@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { Check, X, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { setTopicStatus, addTopicComment } from '@/lib/actions/planning'
 import { timeAgo } from '@/lib/utils'

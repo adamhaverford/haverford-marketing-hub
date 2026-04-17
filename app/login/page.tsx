@@ -4,12 +4,25 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+const QUOTES = [
+  { text: 'Marketing is no longer about the stuff you make, but the stories you tell.', author: 'Seth Godin' },
+  { text: "The best marketing doesn't feel like marketing.", author: 'Tom Fishburne' },
+  { text: 'Content is fire. Social media is gasoline.', author: 'Jay Baer' },
+  { text: 'Do or do not. There is no try.', author: 'Yoda' },
+  { text: "Your brand is what people say about you when you're not in the room.", author: 'Jeff Bezos' },
+  { text: "If you're not embarrassed by the first version of your product, you've launched too late.", author: 'Reid Hoffman' },
+  { text: "Stop interrupting what people are interested in and be what people are interested in.", author: 'Craig Davis' },
+  { text: 'Simplicity is the ultimate sophistication.', author: 'Leonardo da Vinci' },
+  { text: 'Make it simple. Make it memorable. Make it inviting to look at.', author: 'Leo Burnett' },
+]
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [quote] = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -30,7 +43,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left sidebar panel */}
+      {/* Left panel */}
       <div
         className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12"
         style={{ backgroundColor: '#1B2B4B' }}
@@ -49,7 +62,7 @@ export default function LoginPage() {
             Haverford Marketing Hub
           </h1>
           <p className="text-blue-200 text-lg leading-relaxed">
-            Plan, approve, and track email campaigns across all your brands — in one place.
+            Plan, approve, and track email campaigns across all your brands - in one place.
           </p>
           <div className="mt-10 grid grid-cols-2 gap-4 text-left">
             {[
@@ -63,6 +76,14 @@ export default function LoginPage() {
                 <p className="text-blue-200 text-xs mt-1">{item.desc}</p>
               </div>
             ))}
+          </div>
+
+          {/* Rotating quote */}
+          <div className="mt-10 border-t border-white/10 pt-8">
+            <p className="text-blue-100/70 text-sm italic leading-relaxed">
+              &ldquo;{quote.text}&rdquo;
+            </p>
+            <p className="text-blue-300/60 text-xs mt-2">- {quote.author}</p>
           </div>
         </div>
       </div>
@@ -135,7 +156,7 @@ export default function LoginPage() {
               className="w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-opacity disabled:opacity-60"
               style={{ backgroundColor: '#E8611A' }}
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? 'Signing in\u2026' : 'Sign in'}
             </button>
           </form>
         </div>

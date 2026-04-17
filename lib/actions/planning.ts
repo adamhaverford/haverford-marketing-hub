@@ -317,7 +317,6 @@ export async function uploadDesign(data: {
 export async function setDesignStatus(
   designId: string,
   status: 'pending' | 'approved' | 'declined',
-  comment?: string,
 ) {
   const { supabase, profile } = await getAuthedProfile()
   if (profile.role !== 'stakeholder') throw new Error('Unauthorized')

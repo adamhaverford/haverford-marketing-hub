@@ -118,7 +118,7 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
 
   function handleDeclineSubmit() {
     startTransition(async () => {
-      await setDesignStatus(design.id, 'declined', declineReason)
+      await setDesignStatus(design.id, 'declined')
       setShowDeclineInput(false)
       setDeclineReason('')
     })

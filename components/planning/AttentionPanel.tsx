@@ -36,20 +36,20 @@ export default async function AttentionPanel() {
   const upcomingMonths = getUpcomingMonths(6)
 
   if (profile.role === 'stakeholder') {
-    // Topics awaiting approval
+    // Topics awaiting approval — grouped by brand+month
     const { data: pendingTopics } = await supabase
       .from('planning_topics')
       .select('brand_id, month')
       .eq('status', 'proposed')
 
-    const topicGroups = new Map<string, { brandId: string; month: string }>()
+    const topicGroupMap: Record<string, { brandId: string; month: string }> = {}
     for (const t of (pendingTopics ?? [])) {
       const key = `${t.brand_id}-${t.month}`
-      if (!topicGroups.has(key)) topicGroups.set(key, { brandId: t.brand_id, month: t.month })
+      if (!topicGroupMap[key]) topicGroupMap[key] = { brandId: t.brand_id, month: t.month }
     }
-    Array.from(topicGroups.values()).forEach(({ brandId, month }) => {
+    for (const { brandId, month } of Object.values(topicGroupMap)) {
       const brand = brandMap[brandId]
-      if (!brand) return
+      if (!brand) continue
       const count = (pendingTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       items.push({
         href: `/planning/${brandId}/${month}`,
@@ -58,7 +58,6 @@ export default async function AttentionPanel() {
         brandColor: brand.color,
         type: 'urgent',
       })
-    })
     }
 
     // Designs awaiting review
@@ -80,7 +79,7 @@ export default async function AttentionPanel() {
       })
     }
 
-    // Months with no topics (informational)
+    // Months with no topics yet (informational)
     const { data: existingTopics } = await supabase
       .from('planning_topics')
       .select('brand_id, month')
@@ -124,20 +123,20 @@ export default async function AttentionPanel() {
       }
     }
 
-    // Declined topics needing revision
+    // Declined topics needing revision — grouped by brand+month
     const { data: declinedTopics } = await supabase
       .from('planning_topics')
       .select('brand_id, month')
       .eq('status', 'declined')
 
-    const declinedGroups = new Map<string, { brandId: string; month: string }>()
+    const declinedGroupMap: Record<string, { brandId: string; month: string }> = {}
     for (const t of (declinedTopics ?? [])) {
       const key = `${t.brand_id}-${t.month}`
-      if (!declinedGroups.has(key)) declinedGroups.set(key, { brandId: t.brand_id, month: t.month })
+      if (!declinedGroupMap[key]) declinedGroupMap[key] = { brandId: t.brand_id, month: t.month }
     }
-    Array.from(declinedGroups.values()).forEach(({ brandId, month }) => {
+    for (const { brandId, month } of Object.values(declinedGroupMap)) {
       const brand = brandMap[brandId]
-      if (!brand) return
+      if (!brand) continue
       const count = (declinedTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       items.push({
         href: `/planning/${brandId}/${month}`,
@@ -146,7 +145,6 @@ export default async function AttentionPanel() {
         brandColor: brand.color,
         type: 'warning',
       })
-    })
     }
 
     // Months with approved topics but no design uploaded

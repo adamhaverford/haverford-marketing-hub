@@ -17,6 +17,17 @@ export function formatMonthLabel(yyyyMm: string): string {
   return date.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 }
 
+export function formatDatetime(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export function getUpcomingMonths(count: number): string[] {
   const months: string[] = []
   const now = new Date()

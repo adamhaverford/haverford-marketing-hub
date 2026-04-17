@@ -1,12 +1,26 @@
-export default function SettingsPage() {
-  return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-1">Settings</h2>
-      <p className="text-gray-500">Manage your account and application settings.</p>
-      <div className="mt-12 text-center text-gray-400">
-        <p className="text-lg font-medium">Coming in Phase 2</p>
-        <p className="text-sm mt-1">Profile, brand management, and user administration.</p>
-      </div>
-    </div>
-  )
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import SettingsClient from './SettingsClient'
+
+export default async function SettingsPage() {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single()
+
+  // Only marketing users can access settings
+  if (profile?.role !== 'marketing') redirect('/dashboard')
+
+  const [{ data: brands }, { data: users }] = await Promise.all([
+    supabase.from('brands').select('*').order('name'),
+    supabase.from('profiles').select('id, full_name, role, email, created_at').order('full_name'),
+  ])
+
+  return <SettingsClient brands={brands ?? []} users={users ?? []} />
 }

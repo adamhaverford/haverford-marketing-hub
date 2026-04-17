@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import AttentionPanel from '@/components/planning/AttentionPanel'
 
 interface Brand {
   id: string
@@ -196,6 +197,8 @@ export default async function DashboardPage() {
         <h2 className="text-2xl font-bold text-gray-900 mb-1">Overview</h2>
         <p className="text-gray-500">Welcome to the Haverford Marketing Hub.</p>
       </div>
+
+      <AttentionPanel />
 
       {/* Brand summary cards — 2×2 grid */}
       <section className="mb-10">

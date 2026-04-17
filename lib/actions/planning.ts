@@ -218,3 +218,129 @@ export async function getNotifications() {
 
   return data ?? []
 }
+
+// ----------------------------------------------------------------
+// New planning topic actions
+// ----------------------------------------------------------------
+
+export async function addTopic(data: {
+  brand_id: string
+  month: string
+  type: 'evergreen' | 'promotional'
+  title: string
+  description: string | null
+}) {
+  const { supabase, profile } = await getAuthedProfile()
+  if (profile.role !== 'marketing') throw new Error('Unauthorized')
+
+  const { error } = await supabase.from('planning_topics').insert({
+    brand_id: data.brand_id,
+    month: data.month,
+    type: data.type,
+    title: data.title,
+    description: data.description || null,
+    created_by: profile.id,
+    status: 'proposed',
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
+export async function setTopicStatus(
+  topicId: string,
+  status: 'proposed' | 'approved' | 'declined',
+  comment?: string,
+) {
+  const { supabase, profile } = await getAuthedProfile()
+  if (profile.role !== 'stakeholder') throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('planning_topics')
+    .update({
+      status,
+      actioned_by: status === 'proposed' ? null : profile.id,
+      actioned_at: status === 'proposed' ? null : new Date().toISOString(),
+      action_comment: status === 'declined' ? (comment ?? null) : null,
+    })
+    .eq('id', topicId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
+export async function addTopicComment(topicId: string, comment: string) {
+  const { supabase, profile } = await getAuthedProfile()
+
+  const { error } = await supabase.from('planning_topic_comments').insert({
+    topic_id: topicId,
+    user_id: profile.id,
+    comment: comment.trim(),
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
+// ----------------------------------------------------------------
+// New planning design actions
+// ----------------------------------------------------------------
+
+export async function uploadDesign(data: {
+  brand_id: string
+  month: string
+  type: 'evergreen' | 'promotional'
+  file_url: string
+}) {
+  const { supabase, profile } = await getAuthedProfile()
+  if (profile.role !== 'marketing') throw new Error('Unauthorized')
+
+  // Mark any existing current designs as not current (version history)
+  await supabase
+    .from('planning_designs')
+    .update({ is_current: false })
+    .eq('brand_id', data.brand_id)
+    .eq('month', data.month)
+    .eq('type', data.type)
+    .eq('is_current', true)
+
+  const { error } = await supabase.from('planning_designs').insert({
+    brand_id: data.brand_id,
+    month: data.month,
+    type: data.type,
+    file_url: data.file_url,
+    uploaded_by: profile.id,
+    status: 'pending',
+    is_current: true,
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
+export async function setDesignStatus(
+  designId: string,
+  status: 'pending' | 'approved' | 'declined',
+) {
+  const { supabase, profile } = await getAuthedProfile()
+  if (profile.role !== 'stakeholder') throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('planning_designs')
+    .update({
+      status,
+      actioned_by: status === 'pending' ? null : profile.id,
+      actioned_at: status === 'pending' ? null : new Date().toISOString(),
+    })
+    .eq('id', designId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
+export async function addDesignComment(designId: string, comment: string) {
+  const { supabase, profile } = await getAuthedProfile()
+
+  const { error } = await supabase.from('planning_design_comments').insert({
+    design_id: designId,
+    user_id: profile.id,
+    comment: comment.trim(),
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}

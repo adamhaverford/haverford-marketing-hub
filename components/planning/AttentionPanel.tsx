@@ -47,9 +47,9 @@ export default async function AttentionPanel() {
       const key = `${t.brand_id}-${t.month}`
       if (!topicGroups.has(key)) topicGroups.set(key, { brandId: t.brand_id, month: t.month })
     }
-    for (const { brandId, month } of topicGroups.values()) {
+    Array.from(topicGroups.values()).forEach(({ brandId, month }) => {
       const brand = brandMap[brandId]
-      if (!brand) continue
+      if (!brand) return
       const count = (pendingTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       items.push({
         href: `/planning/${brandId}/${month}`,
@@ -58,6 +58,7 @@ export default async function AttentionPanel() {
         brandColor: brand.color,
         type: 'urgent',
       })
+    })
     }
 
     // Designs awaiting review
@@ -134,9 +135,9 @@ export default async function AttentionPanel() {
       const key = `${t.brand_id}-${t.month}`
       if (!declinedGroups.has(key)) declinedGroups.set(key, { brandId: t.brand_id, month: t.month })
     }
-    for (const { brandId, month } of declinedGroups.values()) {
+    Array.from(declinedGroups.values()).forEach(({ brandId, month }) => {
       const brand = brandMap[brandId]
-      if (!brand) continue
+      if (!brand) return
       const count = (declinedTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       items.push({
         href: `/planning/${brandId}/${month}`,
@@ -145,6 +146,7 @@ export default async function AttentionPanel() {
         brandColor: brand.color,
         type: 'warning',
       })
+    })
     }
 
     // Months with approved topics but no design uploaded

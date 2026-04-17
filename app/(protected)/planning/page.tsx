@@ -1,12 +1,49 @@
-export default function PlanningPage() {
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import PlanningClient from '@/components/planning/PlanningClient'
+
+interface Campaign {
+  id: string
+  brand_id: string
+  title: string
+  type: string
+  month: string | null
+  status: string
+  brands: { name: string; color: string } | null
+}
+
+export default async function PlanningPage({
+  searchParams,
+}: {
+  searchParams: { campaign?: string }
+}) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, role')
+    .eq('user_id', user.id)
+    .single()
+
+  const role = profile?.role ?? 'marketing'
+
+  const [{ data: brands }, { data: campaigns }] = await Promise.all([
+    supabase.from('brands').select('id, name, color').eq('active', true).order('name'),
+    supabase
+      .from('campaigns')
+      .select('id, brand_id, title, type, month, status, brands(name, color)')
+      .order('created_at', { ascending: false }),
+  ])
+
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-1">Campaign Planning</h2>
-      <p className="text-gray-500">Manage and plan your email campaigns across all brands.</p>
-      <div className="mt-12 text-center text-gray-400">
-        <p className="text-lg font-medium">Coming in Phase 2</p>
-        <p className="text-sm mt-1">Full campaign calendar and proposal workflow.</p>
-      </div>
-    </div>
+    <PlanningClient
+      campaigns={(campaigns as unknown as Campaign[]) ?? []}
+      brands={brands ?? []}
+      role={role}
+      initialCampaignId={searchParams.campaign}
+    />
   )
 }

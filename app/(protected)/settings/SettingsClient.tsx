@@ -26,6 +26,7 @@ interface UserProfile {
 interface Props {
   brands: Brand[]
   users: UserProfile[]
+  inviteEnabled: boolean
 }
 
 const PRESET_COLORS = [
@@ -34,7 +35,7 @@ const PRESET_COLORS = [
   '#EC4899', '#14B8A6', '#84CC16', '#64748B',
 ]
 
-export default function SettingsClient({ brands: initialBrands, users: initialUsers }: Props) {
+export default function SettingsClient({ brands: initialBrands, users: initialUsers, inviteEnabled }: Props) {
   const { addToast } = useToast()
   const supabase = createClient()
 
@@ -453,16 +454,18 @@ export default function SettingsClient({ brands: initialBrands, users: initialUs
               </div>
             </div>
 
-            <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
-              <p className="text-xs text-amber-700">
-                Requires <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> in your environment variables.
-              </p>
-            </div>
+            {!inviteEnabled && (
+              <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <p className="text-xs text-amber-700">
+                  Requires <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> in your environment variables.
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3 mt-5">
               <button
                 onClick={handleInvite}
-                disabled={inviting || !inviteForm.email.trim() || !inviteForm.full_name.trim()}
+                disabled={!inviteEnabled || inviting || !inviteForm.email.trim() || !inviteForm.full_name.trim()}
                 className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
                 style={{ backgroundColor: '#E8611A' }}
               >

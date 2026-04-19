@@ -22,5 +22,7 @@ export default async function SettingsPage() {
     supabase.from('profiles').select('id, full_name, role, email, created_at').order('full_name'),
   ])
 
-  return <SettingsClient brands={brands ?? []} users={users ?? []} />
+  const inviteEnabled = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  return <SettingsClient brands={brands ?? []} users={users ?? []} inviteEnabled={inviteEnabled} />
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { AlertCircle, ArrowRight, CheckCircle } from 'lucide-react'
+import CommentNotificationItem from './CommentNotificationItem'
 
 interface AttentionItem {
   href: string
@@ -8,6 +9,8 @@ interface AttentionItem {
   brandName: string
   brandColor: string
   type: 'urgent' | 'warning' | 'comment'
+  entityId?: string
+  entityType?: 'topic' | 'design'
 }
 
 export default async function AttentionPanel() {
@@ -137,44 +140,83 @@ export default async function AttentionPanel() {
   // ── Both roles: topics or designs with new comments (last 7 days) ──
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data: recentTopicComments } = await supabase
-    .from('planning_topic_comments')
-    .select('user_id, planning_topics(id, brand_id, month)')
-    .gt('created_at', cutoff)
-    .neq('user_id', profile.id)
+  const [
+    { data: recentTopicComments },
+    { data: recentDesignComments },
+    { data: clicks },
+  ] = await Promise.all([
+    supabase
+      .from('planning_topic_comments')
+      .select('user_id, created_at, planning_topics(id, brand_id, month)')
+      .gt('created_at', cutoff)
+      .neq('user_id', profile.id),
+    supabase
+      .from('planning_design_comments')
+      .select('user_id, created_at, planning_designs(id, brand_id, month)')
+      .gt('created_at', cutoff)
+      .neq('user_id', profile.id),
+    supabase
+      .from('notification_clicks')
+      .select('entity_id, entity_type, clicked_at')
+      .eq('user_id', profile.id),
+  ])
 
+  // Build click-record lookup: `${entityType}-${entityId}` → clicked_at
+  const clickMap = new Map<string, string>()
+  for (const click of (clicks ?? [])) {
+    clickMap.set(`${click.entity_type}-${click.entity_id}`, click.clicked_at)
+  }
+
+  // Group topic comments by topic id, keeping the newest created_at per topic
+  const topicCommentMap = new Map<string, { topic: { id: string; brand_id: string; month: string }; newestAt: string }>()
   for (const c of (recentTopicComments ?? [])) {
     const topic = Array.isArray(c.planning_topics) ? c.planning_topics[0] : c.planning_topics
     if (!topic) continue
+    const existing = topicCommentMap.get(topic.id)
+    if (!existing || c.created_at > existing.newestAt) {
+      topicCommentMap.set(topic.id, { topic, newestAt: c.created_at })
+    }
+  }
+  for (const [topicId, { topic, newestAt }] of topicCommentMap) {
+    const clickedAt = clickMap.get(`topic-${topicId}`)
+    if (clickedAt && newestAt <= clickedAt) continue
     const brand = brandMap[topic.brand_id]
     if (!brand) continue
     addItem({
-      href: `/planning/${topic.brand_id}/${topic.month}?highlight=topic-${topic.id}`,
+      href: `/planning/${topic.brand_id}/${topic.month}?highlight=topic-${topicId}`,
       message: 'New comment on a topic',
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-    }, `topic-comment-${topic.id}`)
+      entityId: topicId,
+      entityType: 'topic',
+    }, `topic-comment-${topicId}`)
   }
 
-  const { data: recentDesignComments } = await supabase
-    .from('planning_design_comments')
-    .select('user_id, planning_designs(id, brand_id, month)')
-    .gt('created_at', cutoff)
-    .neq('user_id', profile.id)
-
+  // Group design comments by design id, keeping the newest created_at per design
+  const designCommentMap = new Map<string, { design: { id: string; brand_id: string; month: string }; newestAt: string }>()
   for (const c of (recentDesignComments ?? [])) {
     const design = Array.isArray(c.planning_designs) ? c.planning_designs[0] : c.planning_designs
     if (!design) continue
+    const existing = designCommentMap.get(design.id)
+    if (!existing || c.created_at > existing.newestAt) {
+      designCommentMap.set(design.id, { design, newestAt: c.created_at })
+    }
+  }
+  for (const [designId, { design, newestAt }] of designCommentMap) {
+    const clickedAt = clickMap.get(`design-${designId}`)
+    if (clickedAt && newestAt <= clickedAt) continue
     const brand = brandMap[design.brand_id]
     if (!brand) continue
     addItem({
-      href: `/planning/${design.brand_id}/${design.month}?highlight=design-${design.id}`,
+      href: `/planning/${design.brand_id}/${design.month}?highlight=design-${designId}`,
       message: 'New comment on a design',
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-    }, `design-comment-${design.id}`)
+      entityId: designId,
+      entityType: 'design',
+    }, `design-comment-${designId}`)
   }
 
   // ── Empty state ───────────────────────────────────────────────
@@ -213,20 +255,33 @@ export default async function AttentionPanel() {
         </span>
       </div>
       <div className="space-y-2">
-        {items.map((item, i) => (
-          <Link
-            key={i}
-            href={item.href}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border-l-4 transition-all hover:shadow-sm hover:-translate-x-0.5 ${typeStyle[item.type]}`}
-          >
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.brandColor }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800">{item.message}</p>
-              <p className="text-xs text-gray-500">{item.brandName}</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          </Link>
-        ))}
+        {items.map((item, i) => {
+          const rowClass = `flex items-center gap-3 px-4 py-3 rounded-xl border-l-4 transition-all hover:shadow-sm hover:-translate-x-0.5 ${typeStyle[item.type]}`
+          if (item.entityId && item.entityType) {
+            return (
+              <CommentNotificationItem
+                key={i}
+                href={item.href}
+                message={item.message}
+                brandName={item.brandName}
+                brandColor={item.brandColor}
+                className={rowClass}
+                entityId={item.entityId}
+                entityType={item.entityType}
+              />
+            )
+          }
+          return (
+            <Link key={i} href={item.href} className={rowClass}>
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.brandColor }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800">{item.message}</p>
+                <p className="text-xs text-gray-500">{item.brandName}</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </Link>
+          )
+        })}
       </div>
     </section>
   )

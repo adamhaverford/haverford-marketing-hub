@@ -17,10 +17,10 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
-  { label: 'Planning',    href: '/planning',     icon: CalendarDays },
-  { label: 'Performance', href: '/performance',  icon: BarChart2 },
-  { label: 'Settings',    href: '/settings',     icon: Settings },
+  { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard, marketingOnly: false },
+  { label: 'Planning',    href: '/planning',     icon: CalendarDays,    marketingOnly: false },
+  { label: 'Performance', href: '/performance',  icon: BarChart2,       marketingOnly: false },
+  { label: 'Settings',    href: '/settings',     icon: Settings,        marketingOnly: true },
 ]
 
 export default function Sidebar({ fullName, role }: SidebarProps) {
@@ -50,7 +50,7 @@ export default function Sidebar({ fullName, role }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 px-4 py-6 space-y-1">
-        {navItems.map(({ label, href, icon: Icon }) => {
+        {navItems.filter(item => !item.marketingOnly || role === 'marketing').map(({ label, href, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link

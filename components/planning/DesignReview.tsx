@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react'
 import { setDesignStatus, addDesignComment, uploadDesign } from '@/lib/actions/planning'
 import { createClient } from '@/lib/supabase/client'
@@ -91,8 +91,18 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
   const [showComments, setShowComments] = useState(false)
   const [showDeclineInput, setShowDeclineInput] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
+  const [highlighted, setHighlighted] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('highlight') !== `design-${design.id}`) return
+    setShowComments(true)
+    setHighlighted(true)
+    setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+  }, [design.id])
 
   const isApproved = design.status === 'approved'
   const isDeclined = design.status === 'declined'
@@ -126,7 +136,10 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
     : 'border-gray-200 bg-white'
 
   return (
-    <div className={`rounded-xl border p-4 ${borderClass} ${!design.is_current && isDeclined ? 'opacity-60' : ''}`}>
+    <div
+      ref={cardRef}
+      className={`rounded-xl border p-4 ${borderClass} ${!design.is_current && isDeclined ? 'opacity-60' : ''}${highlighted ? ' comment-highlight' : ''}`}
+    >
       {!design.is_current && (
         <span className="inline-block text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5 mb-2 font-medium">
           Previous version

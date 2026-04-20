@@ -177,7 +177,7 @@ export default async function AttentionPanel() {
       topicCommentMap.set(topic.id, { topic, newestAt: c.created_at })
     }
   }
-  for (const [topicId, { topic, newestAt }] of topicCommentMap) {
+  for (const [topicId, { topic, newestAt }] of Array.from(topicCommentMap.entries())) {
     const clickedAt = clickMap.get(`topic-${topicId}`)
     if (clickedAt && newestAt <= clickedAt) continue
     const brand = brandMap[topic.brand_id]
@@ -203,7 +203,7 @@ export default async function AttentionPanel() {
       designCommentMap.set(design.id, { design, newestAt: c.created_at })
     }
   }
-  for (const [designId, { design, newestAt }] of designCommentMap) {
+  for (const [designId, { design, newestAt }] of Array.from(designCommentMap.entries())) {
     const clickedAt = clickMap.get(`design-${designId}`)
     if (clickedAt && newestAt <= clickedAt) continue
     const brand = brandMap[design.brand_id]

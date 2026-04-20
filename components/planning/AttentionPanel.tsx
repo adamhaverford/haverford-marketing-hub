@@ -108,6 +108,30 @@ export default async function AttentionPanel() {
         type: 'warning',
       }, `declined-${brandId}-${month}`)
     }
+
+    const { data: declinedDesigns } = await supabase
+      .from('planning_designs')
+      .select('brand_id, month')
+      .eq('status', 'declined')
+      .eq('is_current', true)
+
+    const declinedDesignGroupMap: Record<string, { brandId: string; month: string }> = {}
+    for (const d of (declinedDesigns ?? [])) {
+      const key = `${d.brand_id}-${d.month}`
+      if (!declinedDesignGroupMap[key]) declinedDesignGroupMap[key] = { brandId: d.brand_id, month: d.month }
+    }
+    for (const { brandId, month } of Object.values(declinedDesignGroupMap)) {
+      const brand = brandMap[brandId]
+      if (!brand) continue
+      const count = (declinedDesigns ?? []).filter(d => d.brand_id === brandId && d.month === month).length
+      addItem({
+        href: `/planning/${brandId}/${month}`,
+        message: `${count} declined design${count !== 1 ? 's' : ''} need revision`,
+        brandName: brand.name,
+        brandColor: brand.color,
+        type: 'warning',
+      }, `declined-design-${brandId}-${month}`)
+    }
   }
 
   // ── Both roles: topics or designs with new comments (last 7 days) ──

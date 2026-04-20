@@ -347,3 +347,16 @@ export async function addDesignComment(designId: string, comment: string) {
   if (error) throw new Error(error.message)
   revalidatePath('/planning', 'layout')
 }
+
+export async function recordNotificationClick(entityId: string, entityType: 'topic' | 'design') {
+  const { supabase, profile } = await getAuthedProfile()
+
+  const { error } = await supabase
+    .from('notification_clicks')
+    .upsert(
+      { user_id: profile.id, entity_id: entityId, entity_type: entityType, clicked_at: new Date().toISOString() },
+      { onConflict: 'user_id,entity_id,entity_type' },
+    )
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard')
+}

@@ -9,6 +9,7 @@ export type SectionStatus =
   | 'topics_approved'
   | 'design_uploaded'
   | 'design_approved'
+  | 'scheduled'
 
 interface StatusConfig {
   label: string
@@ -23,6 +24,7 @@ const STATUS_CONFIG: Record<SectionStatus, StatusConfig> = {
   topics_approved: { label: 'Topics approved',  bg: 'bg-blue-100',    text: 'text-blue-700',   dot: 'bg-blue-500' },
   design_uploaded: { label: 'Design uploaded',  bg: 'bg-orange-100',  text: 'text-orange-700', dot: 'bg-orange-500' },
   design_approved: { label: 'Design approved',  bg: 'bg-green-100',   text: 'text-green-700',  dot: 'bg-green-500' },
+  scheduled:       { label: 'Scheduled',        bg: 'bg-purple-100',  text: 'text-purple-700', dot: 'bg-purple-500' },
 }
 
 interface MonthBlockProps {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useEffect, useTransition, useRef } from 'react'
 import { Check, X, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { setTopicStatus, addTopicComment } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
@@ -35,9 +35,19 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
   const [commentText, setCommentText] = useState('')
   const [declineReason, setDeclineReason] = useState('')
   const [showDeclineInput, setShowDeclineInput] = useState(false)
+  const [highlighted, setHighlighted] = useState(false)
   const [isPending, startTransition] = useTransition()
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const isDeclined = topic.status === 'declined'
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('highlight') !== `topic-${topic.id}`) return
+    setShowComments(true)
+    setHighlighted(true)
+    setTimeout(() => rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+  }, [topic.id])
   const isApproved = topic.status === 'approved'
   const canAct = role === 'stakeholder'
 
@@ -75,13 +85,14 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
 
   return (
     <div
+      ref={rowRef}
       className={`rounded-xl border p-4 transition-colors ${
         isDeclined
           ? 'border-red-100 bg-red-50/30 opacity-70'
           : isApproved
           ? 'border-green-100 bg-green-50/20'
           : 'border-gray-200 bg-white'
-      }`}
+      }${highlighted ? ' comment-highlight' : ''}`}
     >
       <div className="flex gap-4">
         {/* Left: topic content */}

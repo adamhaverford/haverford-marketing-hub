@@ -139,7 +139,7 @@ export default async function AttentionPanel() {
 
   const { data: recentTopicComments } = await supabase
     .from('planning_topic_comments')
-    .select('user_id, planning_topics(brand_id, month)')
+    .select('user_id, planning_topics(id, brand_id, month)')
     .gt('created_at', cutoff)
     .neq('user_id', profile.id)
 
@@ -149,17 +149,17 @@ export default async function AttentionPanel() {
     const brand = brandMap[topic.brand_id]
     if (!brand) continue
     addItem({
-      href: `/planning/${topic.brand_id}/${topic.month}`,
+      href: `/planning/${topic.brand_id}/${topic.month}?highlight=topic-${topic.id}`,
       message: 'New comment on a topic',
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-    }, `topic-comment-${topic.brand_id}-${topic.month}`)
+    }, `topic-comment-${topic.id}`)
   }
 
   const { data: recentDesignComments } = await supabase
     .from('planning_design_comments')
-    .select('user_id, planning_designs(brand_id, month)')
+    .select('user_id, planning_designs(id, brand_id, month)')
     .gt('created_at', cutoff)
     .neq('user_id', profile.id)
 
@@ -169,12 +169,12 @@ export default async function AttentionPanel() {
     const brand = brandMap[design.brand_id]
     if (!brand) continue
     addItem({
-      href: `/planning/${design.brand_id}/${design.month}`,
+      href: `/planning/${design.brand_id}/${design.month}?highlight=design-${design.id}`,
       message: 'New comment on a design',
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-    }, `design-comment-${design.brand_id}-${design.month}`)
+    }, `design-comment-${design.id}`)
   }
 
   // ── Empty state ───────────────────────────────────────────────

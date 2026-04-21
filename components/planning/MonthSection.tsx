@@ -147,8 +147,8 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
             </div>
           ) : (
             <div className="space-y-2">
-              {topics.map(topic => (
-                <TopicRow key={topic.id} topic={topic} role={role} />
+              {topics.map((topic, i) => (
+                <TopicRow key={topic.id} topic={topic} role={role} number={i + 1} />
               ))}
             </div>
           )}

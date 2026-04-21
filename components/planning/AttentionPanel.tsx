@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { AlertCircle, ArrowRight, CheckCircle } from 'lucide-react'
 import CommentNotificationItem from './CommentNotificationItem'
+import DismissibleNotificationItem from './DismissibleNotificationItem'
 
 interface AttentionItem {
   href: string
@@ -11,6 +12,7 @@ interface AttentionItem {
   type: 'urgent' | 'warning' | 'comment'
   entityId?: string
   entityType?: 'topic' | 'design'
+  dismissId?: string
 }
 
 export default async function AttentionPanel() {
@@ -43,6 +45,18 @@ export default async function AttentionPanel() {
     }
   }
 
+  // Fetch dismissals so all role sections can filter against them
+  const { data: dismissals } = await supabase
+    .from('notification_clicks')
+    .select('entity_id, clicked_at')
+    .eq('user_id', profile.id)
+    .eq('entity_type', 'dismissal')
+
+  const dismissMap: Record<string, string> = {}
+  for (const d of (dismissals ?? [])) {
+    dismissMap[d.entity_id] = d.clicked_at
+  }
+
   // ── Stakeholder: pending topic approvals ──────────────────────
   if (profile.role === 'stakeholder') {
     const { data: pendingTopics } = await supabase
@@ -58,6 +72,8 @@ export default async function AttentionPanel() {
     for (const { brandId, month } of Object.values(topicGroupMap)) {
       const brand = brandMap[brandId]
       if (!brand) continue
+      const dismissId = `pending-topics-${brandId}-${month}`
+      if (dismissMap[dismissId]) continue
       const count = (pendingTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       addItem({
         href: `/planning/${brandId}/${month}`,
@@ -65,6 +81,7 @@ export default async function AttentionPanel() {
         brandName: brand.name,
         brandColor: brand.color,
         type: 'urgent',
+        dismissId,
       }, `approval-${brandId}-${month}`)
     }
 
@@ -77,12 +94,15 @@ export default async function AttentionPanel() {
     for (const d of (pendingDesigns ?? [])) {
       const brand = brandMap[d.brand_id]
       if (!brand) continue
+      const dismissId = `pending-design-${d.brand_id}-${d.month}`
+      if (dismissMap[dismissId]) continue
       addItem({
         href: `/planning/${d.brand_id}/${d.month}`,
         message: 'Design waiting for your review',
         brandName: brand.name,
         brandColor: brand.color,
         type: 'urgent',
+        dismissId,
       }, `design-review-${d.brand_id}-${d.month}`)
     }
   }
@@ -92,10 +112,10 @@ export default async function AttentionPanel() {
     // Fetch all topics to detect whether a newer topic was added after a decline
     const { data: allTopics } = await supabase
       .from('planning_topics')
-      .select('brand_id, month, type, status, created_at')
+      .select('brand_id, month, type, status, created_at, actioned_at')
       .in('brand_id', brands.map(b => b.id))
 
-    const allTopicsList = (allTopics ?? []) as { brand_id: string; month: string; type: string; status: string; created_at: string }[]
+    const allTopicsList = (allTopics ?? []) as { brand_id: string; month: string; type: string; status: string; created_at: string; actioned_at: string | null }[]
 
     // Latest created_at per brand+month+type across ALL statuses
     const latestTopicAt: Record<string, string> = {}
@@ -114,6 +134,15 @@ export default async function AttentionPanel() {
       return t.created_at >= latestTopicAt[key]
     })
 
+    // Latest actioned_at per brand+month among unactioned declined topics (for dismiss override)
+    const latestTopicDeclineAt: Record<string, string> = {}
+    for (const t of unactionedDeclined) {
+      const key = `${t.brand_id}-${t.month}`
+      if (t.actioned_at && (!latestTopicDeclineAt[key] || t.actioned_at > latestTopicDeclineAt[key])) {
+        latestTopicDeclineAt[key] = t.actioned_at
+      }
+    }
+
     const declinedGroupMap: Record<string, { brandId: string; month: string; count: number }> = {}
     for (const t of unactionedDeclined) {
       const key = `${t.brand_id}-${t.month}`
@@ -123,37 +152,63 @@ export default async function AttentionPanel() {
     for (const { brandId, month, count } of Object.values(declinedGroupMap)) {
       const brand = brandMap[brandId]
       if (!brand) continue
+      const dismissId = `declined-topics-${brandId}-${month}`
+      const dismissedAt = dismissMap[dismissId]
+      if (dismissedAt) {
+        const latestDecline = latestTopicDeclineAt[`${brandId}-${month}`]
+        // Hide if dismissed and no new decline has happened since the dismissal
+        if (!latestDecline || latestDecline <= dismissedAt) continue
+      }
       addItem({
         href: `/planning/${brandId}/${month}`,
         message: `${count} declined topic${count !== 1 ? 's' : ''} need revision`,
         brandName: brand.name,
         brandColor: brand.color,
         type: 'warning',
+        dismissId,
       }, `declined-${brandId}-${month}`)
     }
 
     // is_current=true means no newer design has been uploaded since the decline
     const { data: declinedDesigns } = await supabase
       .from('planning_designs')
-      .select('brand_id, month')
+      .select('brand_id, month, actioned_at')
       .eq('status', 'declined')
       .eq('is_current', true)
 
+    const declinedDesignsList = (declinedDesigns ?? []) as { brand_id: string; month: string; actioned_at: string | null }[]
+
+    // Latest actioned_at per brand+month for dismiss override check
+    const latestDesignDeclineAt: Record<string, string> = {}
+    for (const d of declinedDesignsList) {
+      const key = `${d.brand_id}-${d.month}`
+      if (d.actioned_at && (!latestDesignDeclineAt[key] || d.actioned_at > latestDesignDeclineAt[key])) {
+        latestDesignDeclineAt[key] = d.actioned_at
+      }
+    }
+
     const declinedDesignGroupMap: Record<string, { brandId: string; month: string }> = {}
-    for (const d of (declinedDesigns ?? [])) {
+    for (const d of declinedDesignsList) {
       const key = `${d.brand_id}-${d.month}`
       if (!declinedDesignGroupMap[key]) declinedDesignGroupMap[key] = { brandId: d.brand_id, month: d.month }
     }
     for (const { brandId, month } of Object.values(declinedDesignGroupMap)) {
       const brand = brandMap[brandId]
       if (!brand) continue
-      const count = (declinedDesigns ?? []).filter(d => d.brand_id === brandId && d.month === month).length
+      const count = declinedDesignsList.filter(d => d.brand_id === brandId && d.month === month).length
+      const dismissId = `declined-designs-${brandId}-${month}`
+      const dismissedAt = dismissMap[dismissId]
+      if (dismissedAt) {
+        const latestDecline = latestDesignDeclineAt[`${brandId}-${month}`]
+        if (!latestDecline || latestDecline <= dismissedAt) continue
+      }
       addItem({
         href: `/planning/${brandId}/${month}`,
         message: `${count} declined design${count !== 1 ? 's' : ''} need revision`,
         brandName: brand.name,
         brandColor: brand.color,
         type: 'warning',
+        dismissId,
       }, `declined-design-${brandId}-${month}`)
     }
   }
@@ -289,6 +344,19 @@ export default async function AttentionPanel() {
                 className={rowClass}
                 entityId={item.entityId}
                 entityType={item.entityType}
+              />
+            )
+          }
+          if (item.dismissId) {
+            return (
+              <DismissibleNotificationItem
+                key={i}
+                href={item.href}
+                message={item.message}
+                brandName={item.brandName}
+                brandColor={item.brandColor}
+                className={rowClass}
+                dismissId={item.dismissId}
               />
             )
           }

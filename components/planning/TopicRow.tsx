@@ -30,7 +30,6 @@ interface TopicRowProps {
   role: 'marketing' | 'stakeholder'
   number: number
 }
-}
 
 export default function TopicRow({ topic, role, number }: TopicRowProps) {
   const [showComments, setShowComments] = useState(false)

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
-import { Check, X, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
-import { setTopicStatus, addTopicComment } from '@/lib/actions/planning'
+import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, AlertTriangle } from 'lucide-react'
+import { setTopicStatus, addTopicComment, updateTopic } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 
 interface Comment {
@@ -37,10 +37,17 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
   const [declineReason, setDeclineReason] = useState('')
   const [showDeclineInput, setShowDeclineInput] = useState(false)
   const [highlighted, setHighlighted] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(topic.title)
+  const [editDescription, setEditDescription] = useState(topic.description ?? '')
   const [isPending, startTransition] = useTransition()
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
+  const editTitleRef = useRef<HTMLInputElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const isDeclined = topic.status === 'declined'
+  const isApproved = topic.status === 'approved'
+  const canAct = role === 'stakeholder'
+  const willResetOnSave = role === 'stakeholder' && (isApproved || isDeclined)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -49,8 +56,27 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
     setHighlighted(true)
     setTimeout(() => rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
   }, [topic.id])
-  const isApproved = topic.status === 'approved'
-  const canAct = role === 'stakeholder'
+
+  function startEditing() {
+    setEditTitle(topic.title)
+    setEditDescription(topic.description ?? '')
+    setIsEditing(true)
+    setTimeout(() => editTitleRef.current?.focus(), 50)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    setEditTitle(topic.title)
+    setEditDescription(topic.description ?? '')
+  }
+
+  function handleSave() {
+    if (!editTitle.trim()) return
+    startTransition(async () => {
+      await updateTopic(topic.id, editTitle, editDescription || null)
+      setIsEditing(false)
+    })
+  }
 
   function handleApprove() {
     if (!canAct) return
@@ -98,103 +124,162 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
       <div className="flex gap-4">
         {/* Left: topic content */}
         <div className="flex-1 min-w-0">
-          <p className={`font-semibold text-gray-900 ${isDeclined ? 'line-through text-gray-500' : ''}`}>
-            <span className="text-gray-400 font-bold mr-1">{number}.</span>{topic.title}
-          </p>
-          {topic.description && (
-            <p className={`text-sm mt-1 ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>
-              {topic.description}
-            </p>
-          )}
-          <p className="text-xs text-gray-400 mt-1.5">
-            Added by {topic.profiles?.full_name ?? 'Unknown'} · <span title={topic.created_at}>{timeAgo(topic.created_at)}</span>
-          </p>
-
-          {/* Audit trail — approved */}
-          {isApproved && (
-            <div className="mt-2 flex items-start gap-1.5 text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-              <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <span>
-                Approved by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
-                {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
-              </span>
+          {isEditing ? (
+            <div className="space-y-2">
+              {willResetOnSave && (
+                <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>You reviewed this topic — editing will reset the approval status back to proposed</span>
+                </div>
+              )}
+              <input
+                ref={editTitleRef}
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave() }
+                  if (e.key === 'Escape') cancelEditing()
+                }}
+                placeholder="Topic title..."
+                className="w-full text-sm font-semibold px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') cancelEditing() }}
+                placeholder="Notes / description (optional)..."
+                rows={2}
+                className="w-full text-sm px-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none text-gray-600"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={!editTitle.trim() || isPending}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={cancelEditing}
+                  className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          )}
+          ) : (
+            <>
+              <div className="flex items-start gap-1.5 group/title">
+                <p className={`font-semibold text-gray-900 flex-1 ${isDeclined ? 'line-through text-gray-500' : ''}`}>
+                  <span className="text-gray-400 font-bold mr-1">{number}.</span>{topic.title}
+                </p>
+                <button
+                  onClick={startEditing}
+                  title="Edit topic"
+                  className="opacity-0 group-hover/title:opacity-100 transition-opacity mt-0.5 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+              {topic.description && (
+                <p className={`text-sm mt-1 ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {topic.description}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 mt-1.5">
+                Added by {topic.profiles?.full_name ?? 'Unknown'} · <span title={topic.created_at}>{timeAgo(topic.created_at)}</span>
+              </p>
 
-          {/* Audit trail — declined */}
-          {isDeclined && (
-            <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-              <X className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <span>
-                Declined by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
-                {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
-                {topic.action_comment && <> — {topic.action_comment}</>}
-              </span>
-            </div>
+              {/* Audit trail — approved */}
+              {isApproved && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                  <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Approved by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
+                    {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
+                  </span>
+                </div>
+              )}
+
+              {/* Audit trail — declined */}
+              {isDeclined && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  <X className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Declined by <span className="font-semibold">{topic.actioned_by_profile?.full_name ?? 'Unknown'}</span>
+                    {topic.actioned_at && <> · {formatDatetime(topic.actioned_at)}</>}
+                    {topic.action_comment && <> — {topic.action_comment}</>}
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Right: actions — visible to all, interactive for stakeholder only */}
-        <div className="flex items-start gap-2 flex-shrink-0">
-          {/* Approve button */}
-          <button
-            onClick={handleApprove}
-            disabled={isPending || isDeclined || !canAct}
-            title={
-              !canAct ? 'Only stakeholders can approve topics'
-              : isApproved ? 'Undo approval'
-              : 'Approve topic'
-            }
-            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
-              !canAct
-                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                : isApproved
-                ? 'border-green-500 bg-green-500 text-white hover:bg-green-600 hover:border-green-600 disabled:opacity-40'
-                : 'border-gray-200 text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50 disabled:opacity-40'
-            }`}
-          >
-            <Check className="w-4 h-4" />
-          </button>
+        {/* Right: actions */}
+        {!isEditing && (
+          <div className="flex items-start gap-2 flex-shrink-0">
+            {/* Approve button */}
+            <button
+              onClick={handleApprove}
+              disabled={isPending || isDeclined || !canAct}
+              title={
+                !canAct ? 'Only stakeholders can approve topics'
+                : isApproved ? 'Undo approval'
+                : 'Approve topic'
+              }
+              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+                !canAct
+                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                  : isApproved
+                  ? 'border-green-500 bg-green-500 text-white hover:bg-green-600 hover:border-green-600 disabled:opacity-40'
+                  : 'border-gray-200 text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50 disabled:opacity-40'
+              }`}
+            >
+              <Check className="w-4 h-4" />
+            </button>
 
-          {/* Decline button */}
-          <button
-            onClick={() => {
-              if (!canAct) return
-              if (isDeclined) handleUndecline()
-              else setShowDeclineInput(!showDeclineInput)
-            }}
-            disabled={isPending || isApproved || !canAct}
-            title={
-              !canAct ? 'Only stakeholders can decline topics'
-              : isDeclined ? 'Undo decline'
-              : 'Decline topic'
-            }
-            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
-              !canAct
-                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                : isDeclined
-                ? 'border-red-500 bg-red-500 text-white hover:bg-red-600 hover:border-red-600 disabled:opacity-40'
-                : 'border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
+            {/* Decline button */}
+            <button
+              onClick={() => {
+                if (!canAct) return
+                if (isDeclined) handleUndecline()
+                else setShowDeclineInput(!showDeclineInput)
+              }}
+              disabled={isPending || isApproved || !canAct}
+              title={
+                !canAct ? 'Only stakeholders can decline topics'
+                : isDeclined ? 'Undo decline'
+                : 'Decline topic'
+              }
+              className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+                !canAct
+                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                  : isDeclined
+                  ? 'border-red-500 bg-red-500 text-white hover:bg-red-600 hover:border-red-600 disabled:opacity-40'
+                  : 'border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40'
+              }`}
+            >
+              <X className="w-4 h-4" />
+            </button>
 
-          {/* Comment toggle */}
-          <button
-            onClick={() => {
-              setShowComments(!showComments)
-              if (!showComments) setTimeout(() => commentInputRef.current?.focus(), 100)
-            }}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <MessageCircle className="w-3.5 h-3.5" />
-            {topic.comments.length > 0 && (
-              <span className="font-medium">{topic.comments.length}</span>
-            )}
-            {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-        </div>
+            {/* Comment toggle */}
+            <button
+              onClick={() => {
+                setShowComments(!showComments)
+                if (!showComments) setTimeout(() => commentInputRef.current?.focus(), 100)
+              }}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              {topic.comments.length > 0 && (
+                <span className="font-medium">{topic.comments.length}</span>
+              )}
+              {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Decline reason input (stakeholder only) */}

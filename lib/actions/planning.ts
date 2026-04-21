@@ -268,6 +268,24 @@ export async function setTopicStatus(
   revalidatePath('/planning', 'layout')
 }
 
+export async function updateTopic(topicId: string, title: string, description: string | null) {
+  const { supabase, profile } = await getAuthedProfile()
+
+  const updates: Record<string, unknown> = { title: title.trim(), description: description?.trim() || null }
+
+  // Stakeholder edits reset status to proposed so the topic needs re-review
+  if (profile.role === 'stakeholder') {
+    updates.status = 'proposed'
+    updates.actioned_by = null
+    updates.actioned_at = null
+    updates.action_comment = null
+  }
+
+  const { error } = await supabase.from('planning_topics').update(updates).eq('id', topicId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
 export async function addTopicComment(topicId: string, comment: string) {
   const { supabase, profile } = await getAuthedProfile()
 

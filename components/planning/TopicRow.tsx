@@ -28,9 +28,11 @@ interface Topic {
 interface TopicRowProps {
   topic: Topic
   role: 'marketing' | 'stakeholder'
+  number: number
+}
 }
 
-export default function TopicRow({ topic, role }: TopicRowProps) {
+export default function TopicRow({ topic, role, number }: TopicRowProps) {
   const [showComments, setShowComments] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [declineReason, setDeclineReason] = useState('')
@@ -98,7 +100,7 @@ export default function TopicRow({ topic, role }: TopicRowProps) {
         {/* Left: topic content */}
         <div className="flex-1 min-w-0">
           <p className={`font-semibold text-gray-900 ${isDeclined ? 'line-through text-gray-500' : ''}`}>
-            {topic.title}
+            <span className="text-gray-400 font-bold mr-1">{number}.</span>{topic.title}
           </p>
           {topic.description && (
             <p className={`text-sm mt-1 ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>

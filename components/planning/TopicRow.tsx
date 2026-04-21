@@ -177,7 +177,7 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
                 <button
                   onClick={startEditing}
                   title="Edit topic"
-                  className="opacity-0 group-hover/title:opacity-100 transition-opacity mt-0.5 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex-shrink-0"
+                  className="mt-0.5 p-1 rounded text-gray-300 hover:text-gray-500 hover:bg-gray-100 flex-shrink-0 transition-colors"
                 >
                   <Pencil className="w-3 h-3" />
                 </button>

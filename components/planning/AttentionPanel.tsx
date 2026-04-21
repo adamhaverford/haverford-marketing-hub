@@ -87,22 +87,42 @@ export default async function AttentionPanel() {
     }
   }
 
-  // ── Marketing: declined topics needing revision ───────────────
+  // ── Marketing: declined topics/designs needing revision ──────
   if (profile.role === 'marketing') {
-    const { data: declinedTopics } = await supabase
+    // Fetch all topics to detect whether a newer topic was added after a decline
+    const { data: allTopics } = await supabase
       .from('planning_topics')
-      .select('brand_id, month')
-      .eq('status', 'declined')
+      .select('brand_id, month, type, status, created_at')
+      .in('brand_id', brands.map(b => b.id))
 
-    const declinedGroupMap: Record<string, { brandId: string; month: string }> = {}
-    for (const t of (declinedTopics ?? [])) {
-      const key = `${t.brand_id}-${t.month}`
-      if (!declinedGroupMap[key]) declinedGroupMap[key] = { brandId: t.brand_id, month: t.month }
+    const allTopicsList = (allTopics ?? []) as { brand_id: string; month: string; type: string; status: string; created_at: string }[]
+
+    // Latest created_at per brand+month+type across ALL statuses
+    const latestTopicAt: Record<string, string> = {}
+    for (const t of allTopicsList) {
+      const key = `${t.brand_id}-${t.month}-${t.type}`
+      if (!latestTopicAt[key] || t.created_at > latestTopicAt[key]) {
+        latestTopicAt[key] = t.created_at
+      }
     }
-    for (const { brandId, month } of Object.values(declinedGroupMap)) {
+
+    // Only show notification when the declined topic IS the newest in its group
+    // (i.e. marketing hasn't yet added a replacement topic after the decline)
+    const unactionedDeclined = allTopicsList.filter(t => {
+      if (t.status !== 'declined') return false
+      const key = `${t.brand_id}-${t.month}-${t.type}`
+      return t.created_at >= latestTopicAt[key]
+    })
+
+    const declinedGroupMap: Record<string, { brandId: string; month: string; count: number }> = {}
+    for (const t of unactionedDeclined) {
+      const key = `${t.brand_id}-${t.month}`
+      if (!declinedGroupMap[key]) declinedGroupMap[key] = { brandId: t.brand_id, month: t.month, count: 0 }
+      declinedGroupMap[key].count++
+    }
+    for (const { brandId, month, count } of Object.values(declinedGroupMap)) {
       const brand = brandMap[brandId]
       if (!brand) continue
-      const count = (declinedTopics ?? []).filter(t => t.brand_id === brandId && t.month === month).length
       addItem({
         href: `/planning/${brandId}/${month}`,
         message: `${count} declined topic${count !== 1 ? 's' : ''} need revision`,
@@ -112,6 +132,7 @@ export default async function AttentionPanel() {
       }, `declined-${brandId}-${month}`)
     }
 
+    // is_current=true means no newer design has been uploaded since the decline
     const { data: declinedDesigns } = await supabase
       .from('planning_designs')
       .select('brand_id, month')

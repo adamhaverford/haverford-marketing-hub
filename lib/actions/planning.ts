@@ -360,3 +360,16 @@ export async function recordNotificationClick(entityId: string, entityType: 'top
   if (error) throw new Error(error.message)
   revalidatePath('/dashboard')
 }
+
+export async function dismissNotification(dismissId: string) {
+  const { supabase, profile } = await getAuthedProfile()
+
+  const { error } = await supabase
+    .from('notification_clicks')
+    .upsert(
+      { user_id: profile.id, entity_id: dismissId, entity_type: 'dismissal', clicked_at: new Date().toISOString() },
+      { onConflict: 'user_id,entity_id,entity_type' },
+    )
+  if (error) throw new Error(error.message)
+  revalidatePath('/dashboard')
+}

@@ -53,10 +53,11 @@ export default async function DashboardPage() {
   const supabase = createClient()
 
   const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const nextMonth = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`
-  const twoMonths = [currentMonth, nextMonth]
+  const twoMonthsOutDate = new Date(now.getFullYear(), now.getMonth() + 2, 1)
+  const twoMonthsOut = `${twoMonthsOutDate.getFullYear()}-${String(twoMonthsOutDate.getMonth() + 1).padStart(2, '0')}`
+  const twoMonths = [nextMonth, twoMonthsOut]
 
   const [
     { data: brands },
@@ -73,8 +74,8 @@ export default async function DashboardPage() {
   const designList = (planningDesigns ?? []) as { brand_id: string; month: string; type: string; status: string; is_current: boolean }[]
 
   const monthRows = [
-    { month: currentMonth, label: formatMonthLabel(currentMonth) },
     { month: nextMonth,    label: formatMonthLabel(nextMonth) },
+    { month: twoMonthsOut, label: formatMonthLabel(twoMonthsOut) },
   ]
 
   return (

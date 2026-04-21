@@ -1,7 +1,5 @@
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { AlertCircle, ArrowRight, CheckCircle } from 'lucide-react'
-import CommentNotificationItem from './CommentNotificationItem'
+import { AlertCircle, CheckCircle } from 'lucide-react'
 import DismissibleNotificationItem from './DismissibleNotificationItem'
 
 interface AttentionItem {
@@ -10,9 +8,7 @@ interface AttentionItem {
   brandName: string
   brandColor: string
   type: 'urgent' | 'warning' | 'comment'
-  entityId?: string
-  entityType?: 'topic' | 'design'
-  dismissId?: string
+  dismissId: string
 }
 
 export default async function AttentionPanel() {
@@ -255,7 +251,9 @@ export default async function AttentionPanel() {
   }
   for (const [topicId, { topic, newestAt }] of Array.from(topicCommentMap.entries())) {
     const clickedAt = clickMap.get(`topic-${topicId}`)
-    if (clickedAt && newestAt <= clickedAt) continue
+    const dismissedAt = dismissMap[`comment-topic-${topicId}`]
+    const suppressAt = [clickedAt, dismissedAt].filter(Boolean).sort().pop()
+    if (suppressAt && newestAt <= suppressAt) continue
     const brand = brandMap[topic.brand_id]
     if (!brand) continue
     addItem({
@@ -264,8 +262,7 @@ export default async function AttentionPanel() {
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-      entityId: topicId,
-      entityType: 'topic',
+      dismissId: `comment-topic-${topicId}`,
     }, `topic-comment-${topicId}`)
   }
 
@@ -281,7 +278,9 @@ export default async function AttentionPanel() {
   }
   for (const [designId, { design, newestAt }] of Array.from(designCommentMap.entries())) {
     const clickedAt = clickMap.get(`design-${designId}`)
-    if (clickedAt && newestAt <= clickedAt) continue
+    const dismissedAt = dismissMap[`comment-design-${designId}`]
+    const suppressAt = [clickedAt, dismissedAt].filter(Boolean).sort().pop()
+    if (suppressAt && newestAt <= suppressAt) continue
     const brand = brandMap[design.brand_id]
     if (!brand) continue
     addItem({
@@ -290,8 +289,7 @@ export default async function AttentionPanel() {
       brandName: brand.name,
       brandColor: brand.color,
       type: 'comment',
-      entityId: designId,
-      entityType: 'design',
+      dismissId: `comment-design-${designId}`,
     }, `design-comment-${designId}`)
   }
 
@@ -331,46 +329,17 @@ export default async function AttentionPanel() {
         </span>
       </div>
       <div className="space-y-2">
-        {items.map((item, i) => {
-          const rowClass = `flex items-center gap-3 px-4 py-3 rounded-xl border-l-4 transition-all hover:shadow-sm hover:-translate-x-0.5 ${typeStyle[item.type]}`
-          if (item.entityId && item.entityType) {
-            return (
-              <CommentNotificationItem
-                key={i}
-                href={item.href}
-                message={item.message}
-                brandName={item.brandName}
-                brandColor={item.brandColor}
-                className={rowClass}
-                entityId={item.entityId}
-                entityType={item.entityType}
-              />
-            )
-          }
-          if (item.dismissId) {
-            return (
-              <DismissibleNotificationItem
-                key={i}
-                href={item.href}
-                message={item.message}
-                brandName={item.brandName}
-                brandColor={item.brandColor}
-                className={rowClass}
-                dismissId={item.dismissId}
-              />
-            )
-          }
-          return (
-            <Link key={i} href={item.href} className={rowClass}>
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.brandColor }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800">{item.message}</p>
-                <p className="text-xs text-gray-500">{item.brandName}</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            </Link>
-          )
-        })}
+        {items.map((item, i) => (
+          <DismissibleNotificationItem
+            key={i}
+            href={item.href}
+            message={item.message}
+            brandName={item.brandName}
+            brandColor={item.brandColor}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl border-l-4 transition-all hover:shadow-sm hover:-translate-x-0.5 ${typeStyle[item.type]}`}
+            dismissId={item.dismissId}
+          />
+        ))}
       </div>
     </section>
   )

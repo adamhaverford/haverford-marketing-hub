@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
 import AttentionPanel from '@/components/planning/AttentionPanel'
 import { formatMonthLabel } from '@/lib/utils'
 import type { SectionStatus } from '@/components/planning/MonthBlock'
@@ -103,9 +104,13 @@ export default async function DashboardPage() {
                   <p className="text-white/70 text-xs mb-4">{brand.description}</p>
                 )}
 
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {monthRows.map(({ month, label }) => (
-                    <div key={month}>
+                    <Link
+                      key={month}
+                      href={`/planning/${brand.id}/${month}`}
+                      className="block rounded-xl px-3 py-2.5 -mx-3 transition-colors hover:bg-white/10"
+                    >
                       <p className="text-white/80 text-xs font-semibold uppercase tracking-wide mb-2">
                         {label}
                       </p>
@@ -119,7 +124,7 @@ export default async function DashboardPage() {
                           typeLabel="Promotional"
                         />
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

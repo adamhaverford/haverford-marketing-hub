@@ -26,7 +26,7 @@ export default function DismissibleNotificationItem({ href, message, brandName, 
   }
 
   return (
-    <div className={`group ${className}`}>
+    <div className={className}>
       <Link href={href} className="flex-1 flex items-center gap-3 min-w-0">
         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: brandColor }} />
         <div className="flex-1 min-w-0">
@@ -36,10 +36,10 @@ export default function DismissibleNotificationItem({ href, message, brandName, 
       </Link>
       <button
         onClick={handleDismiss}
-        className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 rounded hover:bg-black/10 text-gray-400 hover:text-gray-600"
+        className="flex-shrink-0 p-1 rounded text-gray-300 hover:text-gray-500 hover:bg-black/10 transition-colors"
         title="Dismiss"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-3 h-3" />
       </button>
     </div>
   )

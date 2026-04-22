@@ -20,25 +20,30 @@ export async function POST(req: NextRequest) {
 
   const filter = `greater-or-equal(datetime,${year}-01-01T00:00:00),less-than(datetime,${year + 1}-01-01T00:00:00)`
 
-  const res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Klaviyo-API-Key ${apiKey}`,
-      'Content-Type': 'application/json',
-      'revision': '2024-02-15',
-    },
-    body: JSON.stringify({
-      data: {
-        type: 'metric-aggregate',
-        attributes: {
-          metric_id: metricId,
-          interval: 'month',
-          measurements,
-          filter,
-        },
+  const body = JSON.stringify({
+    data: {
+      type: 'metric-aggregate',
+      attributes: {
+        metric_id: metricId,
+        interval: 'month',
+        measurements,
+        filter,
       },
-    }),
+    },
   })
+
+  const headers = {
+    'Authorization': `Klaviyo-API-Key ${apiKey}`,
+    'Content-Type': 'application/json',
+    'revision': '2024-02-15',
+  }
+
+  let res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', { method: 'POST', headers, body })
+
+  if (res.status === 429) {
+    await new Promise(r => setTimeout(r, 1000))
+    res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', { method: 'POST', headers, body })
+  }
 
   if (!res.ok) {
     const text = await res.text()

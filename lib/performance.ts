@@ -66,22 +66,43 @@ function rate(numerator: number | null, denominator: number | null): number | nu
   return (numerator / denominator) * 100
 }
 
+const STAGGER_MS = 200
+
+async function fetchMetricStaggered(
+  account: string,
+  metricId: string,
+  year: number,
+  index: number,
+  measurements?: string[],
+): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
+  if (index > 0) await new Promise(r => setTimeout(r, index * STAGGER_MS))
+  return fetchMetric(account, metricId, year, measurements)
+}
+
 export async function fetchPerformanceData(klaviyoAccount: string, year: number): Promise<MonthData[]> {
   const config = KLAVIYO_BRAND_CONFIG[klaviyoAccount]
   if (!config) throw new Error(`No Klaviyo config for account: ${klaviyoAccount}`)
 
   const { metrics } = config
 
-  const [sent, opened, clicked, spam, bounced, unsubscribed, subscribed, orders] = await Promise.all([
-    fetchMetric(klaviyoAccount, metrics.received,     year),
-    fetchMetric(klaviyoAccount, metrics.opened,       year),
-    fetchMetric(klaviyoAccount, metrics.clicked,      year),
-    fetchMetric(klaviyoAccount, metrics.spam,         year),
-    fetchMetric(klaviyoAccount, metrics.bounced,      year),
-    fetchMetric(klaviyoAccount, metrics.unsubscribed, year),
-    fetchMetric(klaviyoAccount, metrics.subscribed,   year),
-    fetchMetric(klaviyoAccount, metrics.placedOrder,  year, ['count', 'sum_value']),
-  ])
+  const metricDefs: Array<[string, string[]]> = [
+    [metrics.received,     ['count']],
+    [metrics.opened,       ['count']],
+    [metrics.clicked,      ['count']],
+    [metrics.spam,         ['count']],
+    [metrics.bounced,      ['count']],
+    [metrics.unsubscribed, ['count']],
+    [metrics.subscribed,   ['count']],
+    [metrics.placedOrder,  ['count', 'sum_value']],
+  ]
+
+  const results = await Promise.all(
+    metricDefs.map(([id, measures], i) =>
+      fetchMetricStaggered(klaviyoAccount, id, year, i, measures)
+    )
+  )
+
+  const [sent, opened, clicked, spam, bounced, unsubscribed, subscribed, orders] = results
 
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {

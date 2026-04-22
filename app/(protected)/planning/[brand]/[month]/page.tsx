@@ -59,6 +59,7 @@ export default async function MonthDetailPage({ params }: Props) {
     `)
     .eq('brand_id', params.brand)
     .eq('month', params.month)
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
 
   // Fetch all designs for this brand+month with their comments

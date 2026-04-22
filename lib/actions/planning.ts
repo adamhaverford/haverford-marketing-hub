@@ -247,6 +247,16 @@ export async function addTopic(data: {
   revalidatePath('/planning', 'layout')
 }
 
+export async function reorderTopics(topicIds: string[]) {
+  const { supabase } = await getAuthedProfile()
+  await Promise.all(
+    topicIds.map((id, index) =>
+      supabase.from('planning_topics').update({ sort_order: index }).eq('id', id)
+    )
+  )
+  revalidatePath('/planning', 'layout')
+}
+
 export async function setTopicStatus(
   topicId: string,
   status: 'proposed' | 'approved' | 'declined',

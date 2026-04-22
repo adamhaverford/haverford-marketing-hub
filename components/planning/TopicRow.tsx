@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
-import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, AlertTriangle } from 'lucide-react'
+import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, AlertTriangle, GripVertical } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { setTopicStatus, addTopicComment, updateTopic } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 
@@ -43,7 +45,14 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
   const [isPending, startTransition] = useTransition()
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const editTitleRef = useRef<HTMLInputElement>(null)
-  const rowRef = useRef<HTMLDivElement>(null)
+  const rowRef = useRef<HTMLDivElement | null>(null)
+
+  const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortable({ id: topic.id })
+
+  function mergeRef(node: HTMLDivElement | null) {
+    setNodeRef(node)
+    rowRef.current = node
+  }
   const isDeclined = topic.status === 'declined'
   const isApproved = topic.status === 'approved'
   const canAct = role === 'stakeholder'
@@ -110,9 +119,16 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
     })
   }
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
   return (
     <div
-      ref={rowRef}
+      ref={mergeRef}
+      style={style}
       className={`rounded-xl border p-4 transition-colors ${
         isDeclined
           ? 'border-red-100 bg-red-50/30 opacity-70'
@@ -121,7 +137,20 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
           : 'border-gray-200 bg-white'
       }${highlighted ? ' comment-highlight' : ''}`}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-2">
+        {/* Drag handle */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="mt-1 p-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 transition-colors"
+          title="Drag to reorder"
+          tabIndex={-1}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+
+        {/* Main content */}
+        <div className="flex-1 flex gap-4">
         {/* Left: topic content */}
         <div className="flex-1 min-w-0">
           {isEditing ? (
@@ -280,7 +309,8 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
             </button>
           </div>
         )}
-      </div>
+        </div>{/* end flex-1 flex gap-4 */}
+      </div>{/* end flex gap-2 */}
 
       {/* Decline reason input (stakeholder only) */}
       {showDeclineInput && canAct && (

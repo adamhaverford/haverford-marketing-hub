@@ -1,10 +1,25 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Plus, ChevronUp } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
 import TopicRow from './TopicRow'
 import DesignReview from './DesignReview'
-import { addTopic } from '@/lib/actions/planning'
+import { addTopic, reorderTopics } from '@/lib/actions/planning'
 
 interface Comment {
   id: string
@@ -51,7 +66,30 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
   const [showAddTopic, setShowAddTopic] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [orderedTopics, setOrderedTopics] = useState(topics)
   const [isPending, startTransition] = useTransition()
+
+  // Sync when server data changes after revalidation
+  useEffect(() => { setOrderedTopics(topics) }, [topics])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setOrderedTopics(prev => {
+      const oldIndex = prev.findIndex(t => t.id === active.id)
+      const newIndex = prev.findIndex(t => t.id === over.id)
+      const reordered = arrayMove(prev, oldIndex, newIndex)
+      startTransition(async () => {
+        await reorderTopics(reordered.map(t => t.id))
+      })
+      return reordered
+    })
+  }
 
   function handleAddTopic() {
     if (!title.trim()) return
@@ -138,7 +176,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
             </div>
           )}
 
-          {topics.length === 0 && !showAddTopic ? (
+          {orderedTopics.length === 0 && !showAddTopic ? (
             <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
               No topics yet.
               {role === 'marketing' && (
@@ -146,11 +184,15 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
               )}
             </div>
           ) : (
-            <div className="space-y-2">
-              {topics.map((topic, i) => (
-                <TopicRow key={topic.id} topic={topic} role={role} number={i + 1} />
-              ))}
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={orderedTopics.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {orderedTopics.map((topic, i) => (
+                    <TopicRow key={topic.id} topic={topic} role={role} number={i + 1} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 

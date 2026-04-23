@@ -76,11 +76,11 @@ export default function MonthBlock({
       {/* Status rows */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 w-20 flex-shrink-0">Evergreen</span>
+          <span className="text-xs text-gray-400 w-28 flex-shrink-0">Evergreen</span>
           <StatusPill status={evergreenStatus} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 w-20 flex-shrink-0">Promo</span>
+          <span className="text-xs text-gray-400 w-28 flex-shrink-0">Newsletter/Promo</span>
           <StatusPill status={promotionalStatus} />
         </div>
       </div>

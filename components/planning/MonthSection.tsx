@@ -103,7 +103,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
     })
   }
 
-  const typeLabel = type === 'evergreen' ? 'Evergreen' : 'Promotional'
+  const typeLabel = type === 'evergreen' ? 'Evergreen' : 'Promo/Newsletter'
   const sectionColor = type === 'evergreen' ? 'bg-teal-50 border-teal-200' : 'bg-purple-50 border-purple-200'
   const headerColor = type === 'evergreen' ? 'text-teal-700' : 'text-purple-700'
   const accentColor = type === 'evergreen' ? '#0d9488' : '#9333ea'

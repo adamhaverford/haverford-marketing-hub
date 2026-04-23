@@ -122,7 +122,7 @@ export default async function DashboardPage() {
                         />
                         <StatusPill
                           status={calcStatus(topicList, designList, brand.id, month, 'promotional')}
-                          typeLabel="Promotional"
+                          typeLabel="Promo/Newsletter"
                         />
                       </div>
                     </Link>

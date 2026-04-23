@@ -105,7 +105,7 @@ export default function NewCampaignModal({ brands, onClose }: Props) {
                 onChange={(e) => set('type', e.target.value)}
               >
                 <option value="evergreen">Evergreen</option>
-                <option value="promotional">Promotional</option>
+                <option value="promotional">Promo/Newsletter</option>
               </select>
             </div>
             <div>

@@ -414,7 +414,7 @@ export default function CampaignDrawer({ campaignId, brands, role, onClose }: Pr
                         onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))}
                       >
                         <option value="evergreen">Evergreen</option>
-                        <option value="promotional">Promotional</option>
+                        <option value="promotional">Promo/Newsletter</option>
                       </select>
                     </div>
                     <div>

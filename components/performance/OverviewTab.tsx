@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Share2 } from 'lucide-react'
-import { MonthData, fmtRate, fmtCount, fmtCurrency } from '@/lib/performance'
+import { MonthData, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
 import OpenRateChart from './OpenRateChart'
@@ -46,7 +46,7 @@ export default function OverviewTab({ data, brand, year }: OverviewTabProps) {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
-              Most Recent Month
+              {monthLabel(featured.month)} — Month to Date
             </h3>
             <button
               onClick={() => setReportMonth(featured)}
@@ -61,26 +61,26 @@ export default function OverviewTab({ data, brand, year }: OverviewTabProps) {
               label="Open Rate"
               value={fmtRate(featured.openRate)}
               trend={trend(featured.openRate, prev?.openRate ?? null)}
-              trendLabel={prev ? `prev ${fmtRate(prev.openRate)}` : undefined}
+              trendLabel={prev ? `vs ${monthLabel(prev.month)}: ${fmtRate(prev.openRate)}` : undefined}
             />
             <MetricCard
               label="Click Rate"
               value={fmtRate(featured.clickRate)}
               trend={trend(featured.clickRate, prev?.clickRate ?? null)}
-              trendLabel={prev ? `prev ${fmtRate(prev.clickRate)}` : undefined}
+              trendLabel={prev ? `vs ${monthLabel(prev.month)}: ${fmtRate(prev.clickRate)}` : undefined}
             />
             <MetricCard
               label="CTOR"
               value={fmtRate(featured.ctor)}
               trend={trend(featured.ctor, prev?.ctor ?? null)}
-              trendLabel={prev ? `prev ${fmtRate(prev.ctor)}` : undefined}
+              trendLabel={prev ? `vs ${monthLabel(prev.month)}: ${fmtRate(prev.ctor)}` : undefined}
             />
             <MetricCard
               label="Revenue"
               value={fmtCurrency(featured.revenue)}
               subValue={`${fmtCount(featured.sent)} sent`}
               trend={trend(featured.revenue, prev?.revenue ?? null)}
-              trendLabel={prev ? `prev ${fmtCurrency(prev.revenue)}` : undefined}
+              trendLabel={prev ? `vs ${monthLabel(prev.month)}: ${fmtCurrency(prev.revenue)}` : undefined}
             />
           </div>
         </div>

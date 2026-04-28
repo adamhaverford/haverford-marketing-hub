@@ -15,7 +15,7 @@ export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) 
     { key: 'unsubRate',    label: 'Unsub',         align: 'right' },
     { key: 'bounceRate',   label: 'Bounce',        align: 'right' },
     { key: 'revenue',      label: 'Revenue',       align: 'right' },
-    { key: 'subscribed',   label: 'New Subs',      align: 'right' },
+    { key: 'netSubscribers', label: 'Net Subs',      align: 'right' },
   ] as const
 
   function fmt(row: MonthData, key: typeof cols[number]['key']): string {
@@ -27,7 +27,7 @@ export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) 
     if (key === 'unsubRate')  return fmtRate(row.unsubRate)
     if (key === 'bounceRate') return fmtRate(row.bounceRate)
     if (key === 'revenue')    return fmtCurrency(row.revenue)
-    if (key === 'subscribed') return fmtCount(row.subscribed)
+    if (key === 'netSubscribers') return fmtCount(row.netSubscribers)
     return '—'
   }
 

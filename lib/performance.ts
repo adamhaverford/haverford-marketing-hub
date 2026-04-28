@@ -8,7 +8,7 @@ export interface MonthData {
   spam: number | null
   bounced: number | null
   unsubscribed: number | null
-  subscribed: number | null
+  netSubscribers: number | null
   revenue: number | null
   // Derived rates (null if no sent data)
   openRate: number | null
@@ -102,33 +102,37 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
     )
   )
 
-  const [sent, opened, clicked, spam, bounced, unsubscribed, subscribed, orders] = results
+  const [sent, opened, clicked, spam, bounced, unsubscribed, rawSubscribed, orders] = results
 
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {
     const key = `${year}-${String(m).padStart(2, '0')}`
-    const s   = sent.count[key]        ?? null
-    const o   = opened.count[key]      ?? null
-    const cl  = clicked.count[key]     ?? null
-    const sp  = spam.count[key]        ?? null
-    const bo  = bounced.count[key]     ?? null
-    const un  = unsubscribed.count[key] ?? null
-    const su  = subscribed.count[key]  ?? null
-    const re  = orders.sumValue[key]   ?? null
+    const s   = sent.count[key]           ?? null
+    const o   = opened.count[key]         ?? null
+    const cl  = clicked.count[key]        ?? null
+    const sp  = spam.count[key]           ?? null
+    const bo  = bounced.count[key]        ?? null
+    const un  = unsubscribed.count[key]   ?? null
+    const su  = rawSubscribed.count[key]  ?? null
+    const re  = orders.sumValue[key]      ?? null
 
     // Treat 0-sent months as no data
     const sentVal = s === 0 ? null : s
 
+    const netSubs = (su === null || un === null)
+      ? null
+      : (su - un === 0 ? null : su - un)
+
     months.push({
-      month:        key,
-      sent:         sentVal,
-      opened:       o,
-      clicked:      cl,
-      spam:         sp,
-      bounced:      bo,
-      unsubscribed: un,
-      subscribed:   su,
-      revenue:      re,
+      month:          key,
+      sent:           sentVal,
+      opened:         o,
+      clicked:        cl,
+      spam:           sp,
+      bounced:        bo,
+      unsubscribed:   un,
+      netSubscribers: netSubs,
+      revenue:        re,
       openRate:     rate(o,  sentVal),
       clickRate:    rate(cl, sentVal),
       ctor:         rate(cl, o),

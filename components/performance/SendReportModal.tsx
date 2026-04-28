@@ -26,7 +26,7 @@ export default function SendReportModal({ brand, year, month, onClose }: SendRep
     `Unsubscribe Rate: ${fmtRate(month.unsubRate)}`,
     `Bounce Rate: ${fmtRate(month.bounceRate)}`,
     `Spam Rate: ${fmtRate(month.spamRate)}`,
-    `New Subscribers: ${fmtCount(month.subscribed)}`,
+    `Net Subscribers: ${fmtCount(month.netSubscribers)}`,
     `Revenue: ${fmtCurrency(month.revenue)}`,
   ]
 

@@ -8,7 +8,7 @@ const ACCOUNT_KEY_MAP: Record<string, string | undefined> = {
 }
 
 export async function POST(req: NextRequest) {
-  const { account, metricId, year, measurements = ['count'] } = await req.json()
+  const { account, metricId, year, measurements = ['count'], by } = await req.json()
 
   const apiKey = ACCOUNT_KEY_MAP[account]
   if (!apiKey) {
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
         interval: 'month',
         measurements,
         filter,
+        ...(by !== undefined && { by: [by] }),
       },
     },
   })

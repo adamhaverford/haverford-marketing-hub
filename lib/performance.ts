@@ -44,11 +44,12 @@ async function fetchMetric(
   metricId: string,
   year: number,
   measurements: string[] = ['count'],
+  by?: string,
 ): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
   const res = await fetch('/api/klaviyo-metrics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account, metricId, year, measurements }),
+    body: JSON.stringify({ account, metricId, year, measurements, ...(by !== undefined && { by }) }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -74,9 +75,10 @@ async function fetchMetricStaggered(
   year: number,
   index: number,
   measurements?: string[],
+  by?: string,
 ): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
   if (index > 0) await new Promise(r => setTimeout(r, index * STAGGER_MS))
-  return fetchMetric(account, metricId, year, measurements)
+  return fetchMetric(account, metricId, year, measurements, by)
 }
 
 export async function fetchPerformanceData(klaviyoAccount: string, year: number): Promise<MonthData[]> {
@@ -93,16 +95,19 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
     [metrics.bounced,      ['count']],
     [metrics.unsubscribed, ['count']],
     [metrics.subscribed,   ['count']],
-    [metrics.placedOrder,  ['count', 'sum_value']],
   ]
 
-  const results = await Promise.all(
-    metricDefs.map(([id, measures], i) =>
-      fetchMetricStaggered(klaviyoAccount, id, year, i, measures)
-    )
-  )
+  const [nonOrderResults, orders] = await Promise.all([
+    Promise.all(
+      metricDefs.map(([id, measures], i) =>
+        fetchMetricStaggered(klaviyoAccount, id, year, i, measures)
+      )
+    ),
+    // Email-attributed revenue only (excludes orders not attributed to an email send)
+    fetchMetricStaggered(klaviyoAccount, metrics.placedOrder, year, metricDefs.length, ['count', 'sum_value'], '$attributed_message'),
+  ])
 
-  const [sent, opened, clicked, spam, bounced, unsubscribed, rawSubscribed, orders] = results
+  const [sent, opened, clicked, spam, bounced, unsubscribed, rawSubscribed] = nonOrderResults
 
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {

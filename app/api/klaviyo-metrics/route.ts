@@ -8,7 +8,7 @@ const ACCOUNT_KEY_MAP: Record<string, string | undefined> = {
 }
 
 export async function POST(req: NextRequest) {
-  const { account, metricId, year, measurements = ['count'], by } = await req.json()
+  const { account, metricId, year, measurements = ['count'], attributedOnly } = await req.json()
 
   const apiKey = ACCOUNT_KEY_MAP[account]
   if (!apiKey) {
@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const filter = `greater-or-equal(datetime,${year}-01-01T00:00:00),less-than(datetime,${year + 1}-01-01T00:00:00)`
+  const dateFilter = `greater-or-equal(datetime,${year}-01-01T00:00:00),less-than(datetime,${year + 1}-01-01T00:00:00)`
+  const filter = attributedOnly
+    ? `${dateFilter},not(equals($attributed_message,""))`
+    : dateFilter
 
   const body = JSON.stringify({
     data: {
@@ -28,7 +31,6 @@ export async function POST(req: NextRequest) {
         interval: 'month',
         measurements,
         filter,
-        ...(by !== undefined && { by: [by] }),
       },
     },
   })

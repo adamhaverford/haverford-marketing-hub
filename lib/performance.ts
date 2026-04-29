@@ -44,12 +44,12 @@ async function fetchMetric(
   metricId: string,
   year: number,
   measurements: string[] = ['count'],
-  by?: string,
+  attributedOnly?: boolean,
 ): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
   const res = await fetch('/api/klaviyo-metrics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account, metricId, year, measurements, ...(by !== undefined && { by }) }),
+    body: JSON.stringify({ account, metricId, year, measurements, ...(attributedOnly && { attributedOnly }) }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -75,10 +75,10 @@ async function fetchMetricStaggered(
   year: number,
   index: number,
   measurements?: string[],
-  by?: string,
+  attributedOnly?: boolean,
 ): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
   if (index > 0) await new Promise(r => setTimeout(r, index * STAGGER_MS))
-  return fetchMetric(account, metricId, year, measurements, by)
+  return fetchMetric(account, metricId, year, measurements, attributedOnly)
 }
 
 export async function fetchPerformanceData(klaviyoAccount: string, year: number): Promise<MonthData[]> {
@@ -104,7 +104,7 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
       )
     ),
     // Email-attributed revenue only (excludes orders not attributed to an email send)
-    fetchMetricStaggered(klaviyoAccount, metrics.placedOrder, year, metricDefs.length, ['count', 'sum_value'], '$attributed_message'),
+    fetchMetricStaggered(klaviyoAccount, metrics.placedOrder, year, metricDefs.length, ['count', 'sum_value'], true),
   ])
 
   const [sent, opened, clicked, spam, bounced, unsubscribed, rawSubscribed] = nonOrderResults

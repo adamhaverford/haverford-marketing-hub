@@ -45,7 +45,7 @@ async function fetchMetric(
   year: number,
   measurements: string[] = ['count'],
   attributedOnly?: boolean,
-): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
+): Promise<{ count: Record<string, number>; unique: Record<string, number>; sumValue: Record<string, number> }> {
   const res = await fetch('/api/klaviyo-metrics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,6 +58,7 @@ async function fetchMetric(
   const json = await res.json()
   return {
     count:    parseKlaviyoResponse(json, 'count'),
+    unique:   parseKlaviyoResponse(json, 'unique'),
     sumValue: parseKlaviyoResponse(json, 'sum_value'),
   }
 }
@@ -89,8 +90,8 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
 
   const metricDefs: Array<[string, string[]]> = [
     [metrics.received,     ['count']],
-    [metrics.opened,       ['count']],
-    [metrics.clicked,      ['count']],
+    [metrics.opened,       ['unique']],
+    [metrics.clicked,      ['unique']],
     [metrics.spam,         ['count']],
     [metrics.bounced,      ['count']],
     [metrics.unsubscribed, ['count']],
@@ -113,8 +114,8 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
   for (let m = 1; m <= 12; m++) {
     const key = `${year}-${String(m).padStart(2, '0')}`
     const s   = sent.count[key]           ?? null
-    const o   = opened.count[key]         ?? null
-    const cl  = clicked.count[key]        ?? null
+    const o   = opened.unique[key]        ?? null
+    const cl  = clicked.unique[key]       ?? null
     const sp  = spam.count[key]           ?? null
     const bo  = bounced.count[key]        ?? null
     const un  = unsubscribed.count[key]   ?? null
@@ -123,6 +124,9 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
 
     // Treat 0-sent months as no data
     const sentVal = s === 0 ? null : s
+
+    // Klaviyo open/click rates use delivered (sent minus bounced) as denominator
+    const delivered = (sentVal !== null && bo !== null) ? sentVal - bo : sentVal
 
     const netSubs = (su === null || un === null)
       ? null
@@ -138,8 +142,8 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
       unsubscribed:   un,
       netSubscribers: netSubs,
       revenue:        re,
-      openRate:     rate(o,  sentVal),
-      clickRate:    rate(cl, sentVal),
+      openRate:     rate(o,  delivered),
+      clickRate:    rate(cl, delivered),
       ctor:         rate(cl, o),
       unsubRate:    rate(un, sentVal),
       bounceRate:   rate(bo, sentVal),

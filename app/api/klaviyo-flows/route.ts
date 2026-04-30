@@ -10,6 +10,19 @@ const ACCOUNT_KEY_MAP: Record<string, string | undefined> = {
 
 const STAGGER_MS = 200
 
+const FLOW_STATISTICS = [
+  'opens_unique',
+  'clicks_unique',
+  'delivered',
+  'bounced_total',
+  'unsubscribed',
+  'revenue',
+  'placed_order_count',
+  'spam_complaints_unique',
+]
+
+const FLOWS_LIST_URL = `https://a.klaviyo.com/api/flows/?filter=${encodeURIComponent("equals(status,'live')")}`
+
 function makeHeaders(apiKey: string) {
   return {
     'Authorization': `Klaviyo-API-Key ${apiKey}`,
@@ -25,6 +38,11 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
     res = await fetch(url, options)
   }
   return res
+}
+
+function flowFilter(ids: string[]): string {
+  if (ids.length === 1) return `equals(flow_id,"${ids[0]}")`
+  return `any(flow_id,[${ids.map(id => `"${id}"`).join(',')}])`
 }
 
 interface RawFlow {
@@ -84,9 +102,9 @@ export async function POST(req: NextRequest) {
 
   const headers = makeHeaders(apiKey)
 
-  // ── 1. Fetch all flows (paginated) ───────────────────────────
+  // ── 1. Fetch all live flows (paginated) ──────────────────────
   const allFlows: RawFlow[] = []
-  let nextUrl: string | null = 'https://a.klaviyo.com/api/flows/'
+  let nextUrl: string | null = FLOWS_LIST_URL
 
   while (nextUrl) {
     const res = await fetchWithRetry(nextUrl, { headers })
@@ -116,10 +134,8 @@ export async function POST(req: NextRequest) {
     batches.push(flowIds.slice(i, i + BATCH_SIZE))
   }
 
-  // statsMap[flowId][month] = aggregated statistics for that flow in that month
   const statsMap: Record<string, Record<string, number>> = {}
 
-  // monthlyStatsMap[month][stat] = sum across all flows
   const monthlyStatsMap: Record<string, {
     recipients: number; opens: number; clicks: number
     unsubs: number; bounces: number; spam: number
@@ -135,7 +151,8 @@ export async function POST(req: NextRequest) {
           type: 'flow-values-report',
           attributes: {
             timeframe: { start: startDate, end: endDate },
-            flow_ids: batch,
+            filter: flowFilter(batch),
+            statistics: FLOW_STATISTICS,
             conversion_metric_id: config.metrics.placedOrder,
           },
         },
@@ -152,7 +169,6 @@ export async function POST(req: NextRequest) {
         }
         const json = await res.json()
 
-        // Flow reports return results grouped by flow and date
         const results: Array<{
           flow_id: string
           date: string
@@ -176,17 +192,17 @@ export async function POST(req: NextRequest) {
               bounces: 0, spam: 0, delivered: 0, revenue: 0, orders: 0,
             }
           }
-          const ms = monthlyStatsMap[mk]
-          const rec     = r.statistics.recipients_count  ?? 0
-          const bounces = r.statistics.bounced           ?? 0
-          ms.recipients += rec
-          ms.opens      += r.statistics.unique_opens     ?? 0
-          ms.clicks     += r.statistics.unique_clicks    ?? 0
-          ms.unsubs     += r.statistics.unsubscribed     ?? 0
+          const ms      = monthlyStatsMap[mk]
+          const del     = r.statistics.delivered          ?? 0
+          const bounces = r.statistics.bounced_total      ?? 0
+          ms.delivered  += del
           ms.bounces    += bounces
-          ms.spam       += r.statistics.marked_as_spam   ?? 0
-          ms.delivered  += rec - bounces
-          ms.revenue    += r.statistics.sum_revenue      ?? 0
+          ms.recipients  = ms.delivered + ms.bounces
+          ms.opens      += r.statistics.opens_unique       ?? 0
+          ms.clicks     += r.statistics.clicks_unique      ?? 0
+          ms.unsubs     += r.statistics.unsubscribed       ?? 0
+          ms.spam       += r.statistics.spam_complaints_unique ?? 0
+          ms.revenue    += r.statistics.revenue            ?? 0
           ms.orders     += r.statistics.placed_order_count ?? 0
         }
       } catch (err) {
@@ -199,29 +215,28 @@ export async function POST(req: NextRequest) {
   const flows: FlowRow[] = allFlows.map(f => {
     const stats = statsMap[f.id] ?? {}
 
-    const recipients = stats.recipients_count    ?? null
-    const opens      = stats.unique_opens        ?? null
-    const clicks     = stats.unique_clicks       ?? null
-    const unsubs     = stats.unsubscribed        ?? null
-    const bounces    = stats.bounced             ?? null
-    const spam       = stats.marked_as_spam      ?? null
-    const rev        = stats.sum_revenue         ?? null
-    const orders     = stats.placed_order_count  ?? null
-
-    const delivered = (recipients !== null && bounces !== null) ? recipients - bounces : recipients
+    const delivered = stats.delivered               ?? null
+    const bounces   = stats.bounced_total           ?? null
+    const opens     = stats.opens_unique            ?? null
+    const clicks    = stats.clicks_unique           ?? null
+    const unsubs    = stats.unsubscribed            ?? null
+    const spam      = stats.spam_complaints_unique  ?? null
+    const rev       = stats.revenue                 ?? null
+    const orders    = stats.placed_order_count      ?? null
+    const recipients = (delivered !== null && bounces !== null) ? delivered + bounces : null
 
     return {
       id:               f.id,
       name:             f.attributes.name,
       recipients,
-      openRate:         pct(opens   ?? 0, delivered ?? 0),
-      clickRate:        pct(clicks  ?? 0, delivered ?? 0),
-      ctor:             pct(clicks  ?? 0, opens     ?? 0),
-      unsubRate:        pct(unsubs  ?? 0, recipients ?? 0),
-      bounceRate:       pct(bounces ?? 0, recipients ?? 0),
-      spamRate:         pct(spam    ?? 0, recipients ?? 0),
+      openRate:         pct(opens   ?? 0, delivered   ?? 0),
+      clickRate:        pct(clicks  ?? 0, delivered   ?? 0),
+      ctor:             pct(clicks  ?? 0, opens       ?? 0),
+      unsubRate:        pct(unsubs  ?? 0, recipients  ?? 0),
+      bounceRate:       pct(bounces ?? 0, recipients  ?? 0),
+      spamRate:         pct(spam    ?? 0, recipients  ?? 0),
       revenue:          rev,
-      placedOrderRate:  pct(orders  ?? 0, recipients ?? 0),
+      placedOrderRate:  pct(orders  ?? 0, recipients  ?? 0),
       placedOrderCount: orders,
       aov:              (orders !== null && orders > 0 && rev !== null) ? rev / orders : null,
     }
@@ -232,21 +247,21 @@ export async function POST(req: NextRequest) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, m]) => ({
       month,
-      recipients:      m.recipients,
-      openRate:        pct(m.opens,  m.delivered),
-      clickRate:       pct(m.clicks, m.delivered),
-      unsubRate:       pct(m.unsubs, m.recipients),
-      bounceRate:      pct(m.bounces, m.recipients),
-      spamRate:        pct(m.spam,   m.recipients),
-      revenue:         m.revenue,
+      recipients:       m.recipients,
+      openRate:         pct(m.opens,  m.delivered),
+      clickRate:        pct(m.clicks, m.delivered),
+      unsubRate:        pct(m.unsubs, m.recipients),
+      bounceRate:       pct(m.bounces, m.recipients),
+      spamRate:         pct(m.spam,   m.recipients),
+      revenue:          m.revenue,
       placedOrderCount: m.orders,
-      aov:             m.orders > 0 ? m.revenue / m.orders : null,
+      aov:              m.orders > 0 ? m.revenue / m.orders : null,
     }))
 
   return NextResponse.json({ flows, monthly })
 }
 
-// Diagnostic: returns raw Klaviyo response shapes for the first page of flows
+// Diagnostic: returns raw Klaviyo response shapes for the first page of live flows
 // and the values-report for the first flow only. No transformation.
 // Usage: GET /api/klaviyo-flows?account=haverford&year=2026
 export async function GET(req: NextRequest) {
@@ -267,8 +282,8 @@ export async function GET(req: NextRequest) {
   const startDate = `${year}-01-01T00:00:00`
   const endDate   = `${year + 1}-01-01T00:00:00`
 
-  // 1. First page of flows list
-  const listRes = await fetchWithRetry('https://a.klaviyo.com/api/flows/', { headers })
+  // 1. First page of live flows list
+  const listRes = await fetchWithRetry(FLOWS_LIST_URL, { headers })
   const listRaw = await listRes.json()
 
   if (!listRes.ok) {
@@ -289,7 +304,8 @@ export async function GET(req: NextRequest) {
             type: 'flow-values-report',
             attributes: {
               timeframe: { start: startDate, end: endDate },
-              flow_ids: [firstId],
+              filter: flowFilter([firstId]),
+              statistics: FLOW_STATISTICS,
               conversion_metric_id: config.metrics.placedOrder,
             },
           },

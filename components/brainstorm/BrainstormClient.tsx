@@ -162,17 +162,19 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
         .limit(1)
         .maybeSingle()
 
-      const sort_order = (existing?.sort_order ?? -1) + 1
+      const sort_order = (existing?.sort_order ?? 0) + 1
 
       // Create planning topic
       const { data: topic, error: topicErr } = await supabase
         .from('planning_topics')
         .insert({
-          brand_id:   brandId,
-          month:      proceedMonth,
-          type:       proceedType,
-          title:      proceedingIdea.text,
-          created_by: currentUserId,
+          brand_id:    brandId,
+          month:       proceedMonth,
+          type:        proceedType,
+          title:       proceedingIdea.text,
+          description: null,
+          created_by:  currentUserId,
+          status:      'proposed',
           sort_order,
         })
         .select('id')

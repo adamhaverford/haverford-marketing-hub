@@ -142,6 +142,8 @@ export async function POST(req: NextRequest) {
     delivered: number; revenue: number; orders: number
   }> = {}
 
+  const batchErrors: string[] = []
+
   await Promise.all(
     batches.map(async (batch, i) => {
       if (i > 0) await new Promise(r => setTimeout(r, i * STAGGER_MS))
@@ -164,7 +166,9 @@ export async function POST(req: NextRequest) {
           { method: 'POST', headers, body },
         )
         if (!res.ok) {
-          console.error(`flow-values-reports batch ${i} failed: ${res.status}`)
+          const errText = await res.text()
+          console.error(`flow-values-reports batch ${i} failed (${res.status}):`, errText)
+          batchErrors.push(`batch ${i} — HTTP ${res.status}: ${errText}`)
           return
         }
         const json = await res.json()
@@ -261,7 +265,7 @@ export async function POST(req: NextRequest) {
       aov:              m.orders > 0 ? m.revenue / m.orders : null,
     }))
 
-  return NextResponse.json({ flows, monthly })
+  return NextResponse.json({ flows, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }
 
 // Diagnostic: returns raw Klaviyo response shapes for the first page of live flows

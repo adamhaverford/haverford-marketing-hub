@@ -291,7 +291,7 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
               </span>
             )}
             <span className="text-xs text-gray-400">
-              {idea.creator_name ?? 'Unknown'} · {timeAgo(idea.created_at)}
+              {idea.created_by === currentUserId ? 'You' : 'Someone'} · {timeAgo(idea.created_at)}
             </span>
             {inArchive && (
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${

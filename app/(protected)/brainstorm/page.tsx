@@ -17,8 +17,7 @@ export default async function BrainstormPage() {
         id, text, brand_id, topic_type, status,
         proceeded_to_month, proceeded_to_topic_id,
         created_by, created_at,
-        brand:brand_id(name, color),
-        creator:created_by(full_name)
+        brand:brand_id(name, color)
       `)
       .order('created_at', { ascending: false }),
   ])
@@ -36,7 +35,6 @@ export default async function BrainstormPage() {
     created_by: string | null
     created_at: string
     brand: { name: string; color: string }[] | null
-    creator: { full_name: string }[] | null
   }) => ({
     id: i.id,
     text: i.text,
@@ -49,7 +47,7 @@ export default async function BrainstormPage() {
     created_at: i.created_at,
     brand_name: i.brand?.[0]?.name ?? null,
     brand_color: i.brand?.[0]?.color ?? null,
-    creator_name: i.creator?.[0]?.full_name ?? null,
+    creator_name: null,
   }))
 
   console.log('[brainstorm] ideas fetched:', ideas.length)

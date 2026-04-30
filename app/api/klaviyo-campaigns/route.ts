@@ -15,9 +15,9 @@ const CAMPAIGN_STATISTICS = [
   'clicks_unique',
   'delivered',
   'bounced',
-  'unsubscribed',
+  'unsubscribes',
   'revenue_per_recipient',
-  'placed_order_rate',
+  'conversion_rate',
   'spam_complaints',
 ]
 
@@ -186,9 +186,9 @@ export async function POST(req: NextRequest) {
     const bounces   = stats.bounced           ?? null
     const opens     = stats.opens_unique             ?? null
     const clicks    = stats.clicks_unique            ?? null
-    const unsubs    = stats.unsubscribed      ?? null
+    const unsubs    = stats.unsubscribes      ?? null
     const revPPR    = stats.revenue_per_recipient    ?? null
-    const orders    = stats.placed_order_rate             ?? null
+    const orders    = stats.conversion_rate             ?? null
     // revenue_per_recipient × delivered = total revenue
     const rev        = (revPPR !== null && delivered !== null) ? revPPR * delivered : null
     // recipients = delivered + bounced (no explicit recipients stat)
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
     m.bounces    += stats.bounced      ?? 0
     m.opens      += stats.opens_unique        ?? 0
     m.clicks     += stats.clicks_unique       ?? 0
-    m.unsubs     += stats.unsubscribed ?? 0
+    m.unsubs     += stats.unsubscribes ?? 0
     // revenue_per_recipient × delivered = total revenue for this campaign
     m.revenue    += (stats.revenue_per_recipient ?? 0) * del
     m.recipients  = m.delivered + m.bounces

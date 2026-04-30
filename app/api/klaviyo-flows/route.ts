@@ -84,6 +84,18 @@ function pct(n: number, d: number): number | null {
   return (n / d) * 100
 }
 
+// Per-flow accumulated totals built from all matching result rows
+interface FlowAccum {
+  delivered:       number
+  bounced:         number
+  opens_unique:    number
+  clicks_unique:   number
+  unsubscribes:    number
+  spam_complaints: number
+  total_revenue:   number  // sum of (revenue_per_recipient * delivered) per row
+  total_orders:    number  // sum of (conversion_rate * delivered) per row
+}
+
 export async function POST(req: NextRequest) {
   const { account, year } = await req.json()
 
@@ -134,13 +146,9 @@ export async function POST(req: NextRequest) {
     batches.push(flowIds.slice(i, i + BATCH_SIZE))
   }
 
-  const statsMap: Record<string, Record<string, number>> = {}
-
-  const monthlyStatsMap: Record<string, {
-    recipients: number; opens: number; clicks: number
-    unsubs: number; bounces: number; spam: number
-    delivered: number; revenue: number; orders: number
-  }> = {}
+  // Results are grouped by { flow_id, send_channel, flow_message_id } — no date field.
+  // Accumulate all rows sharing the same flow_id into a single totals object.
+  const statsMap: Record<string, FlowAccum> = {}
 
   const batchErrors: string[] = []
 
@@ -173,42 +181,29 @@ export async function POST(req: NextRequest) {
         }
         const json = await res.json()
 
-        const results: Array<{
-          flow_id: string
-          date: string
-          statistics: Record<string, number>
-        }> = json.data?.attributes?.results ?? []
+        const results: Array<{ flow_id: string; statistics: Record<string, number> }> =
+          json.data?.attributes?.results ?? []
         console.log('[flows] raw results[0]:', JSON.stringify(results[0], null, 2))
-        for (const r of results) {
-          // Aggregate per-flow totals
-          if (!statsMap[r.flow_id]) statsMap[r.flow_id] = {}
-          const fs = statsMap[r.flow_id]
-          for (const [k, v] of Object.entries(r.statistics)) {
-            fs[k] = (fs[k] ?? 0) + v
-          }
 
-          // Aggregate per-month totals
-          const mk = r.date?.substring(0, 7) ?? ''
-          if (!mk) continue
-          if (!monthlyStatsMap[mk]) {
-            monthlyStatsMap[mk] = {
-              recipients: 0, opens: 0, clicks: 0, unsubs: 0,
-              bounces: 0, spam: 0, delivered: 0, revenue: 0, orders: 0,
+        for (const r of results) {
+          if (!statsMap[r.flow_id]) {
+            statsMap[r.flow_id] = {
+              delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
+              unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
             }
           }
-          const ms      = monthlyStatsMap[mk]
-          const del     = r.statistics.delivered              ?? 0
-          const bounces = r.statistics.bounced        ?? 0
-          ms.delivered  += del
-          ms.bounces    += bounces
-          ms.recipients  = ms.delivered + ms.bounces
-          ms.opens      += r.statistics.opens_unique          ?? 0
-          ms.clicks     += r.statistics.clicks_unique         ?? 0
-          ms.unsubs     += r.statistics.unsubscribes   ?? 0
-          ms.spam       += r.statistics.spam_complaints       ?? 0
-          // revenue_per_recipient × delivered = total revenue for this result row
-          ms.revenue    += (r.statistics.revenue_per_recipient ?? 0) * del
-          ms.orders     += r.statistics.conversion_rate          ?? 0
+          const acc = statsMap[r.flow_id]
+          const del = r.statistics.delivered ?? 0
+          acc.delivered       += del
+          acc.bounced         += r.statistics.bounced           ?? 0
+          acc.opens_unique    += r.statistics.opens_unique      ?? 0
+          acc.clicks_unique   += r.statistics.clicks_unique     ?? 0
+          acc.unsubscribes    += r.statistics.unsubscribes      ?? 0
+          acc.spam_complaints += r.statistics.spam_complaints   ?? 0
+          // revenue_per_recipient and conversion_rate are per-message rates;
+          // multiply by delivered to get message-level totals before summing
+          acc.total_revenue   += (r.statistics.revenue_per_recipient ?? 0) * del
+          acc.total_orders    += (r.statistics.conversion_rate       ?? 0) * del
         }
       } catch (err) {
         console.error(`flow-values-reports batch ${i} error:`, err)
@@ -218,52 +213,44 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Assemble flow rows ────────────────────────────────────
   const flows: FlowRow[] = allFlows.map(f => {
-    const stats = statsMap[f.id] ?? {}
+    const acc = statsMap[f.id]
+    if (!acc || acc.delivered === 0) {
+      return {
+        id: f.id, name: f.attributes.name,
+        recipients: null, openRate: null, clickRate: null, ctor: null,
+        unsubRate: null, bounceRate: null, spamRate: null,
+        revenue: null, placedOrderRate: null, placedOrderCount: null, aov: null,
+      }
+    }
 
-    const delivered = stats.delivered               ?? null
-    const bounces   = stats.bounced          ?? null
-    const opens     = stats.opens_unique            ?? null
-    const clicks    = stats.clicks_unique           ?? null
-    const unsubs    = stats.unsubscribes     ?? null
-    const spam      = stats.spam_complaints         ?? null
-    const revPPR    = stats.revenue_per_recipient   ?? null
-    const orders    = stats.conversion_rate            ?? null
-    // revenue_per_recipient × delivered = total revenue
-    const rev        = (revPPR !== null && delivered !== null) ? revPPR * delivered : null
-    const recipients = (delivered !== null && bounces !== null) ? delivered + bounces : null
+    const { delivered, bounced, opens_unique, clicks_unique,
+            unsubscribes, spam_complaints, total_revenue, total_orders } = acc
+
+    const recipients      = delivered + bounced
+    const placedOrderCount = Math.round(total_orders)
+    const revenue         = total_revenue
 
     return {
       id:               f.id,
       name:             f.attributes.name,
       recipients,
-      openRate:         pct(opens   ?? 0, delivered   ?? 0),
-      clickRate:        pct(clicks  ?? 0, delivered   ?? 0),
-      ctor:             pct(clicks  ?? 0, opens       ?? 0),
-      unsubRate:        pct(unsubs  ?? 0, recipients  ?? 0),
-      bounceRate:       pct(bounces ?? 0, recipients  ?? 0),
-      spamRate:         pct(spam    ?? 0, recipients  ?? 0),
-      revenue:          rev,
-      placedOrderRate:  pct(orders  ?? 0, recipients  ?? 0),
-      placedOrderCount: orders,
-      aov:              (orders !== null && orders > 0 && rev !== null) ? rev / orders : null,
+      openRate:         pct(opens_unique,    delivered),
+      clickRate:        pct(clicks_unique,   delivered),
+      ctor:             pct(clicks_unique,   opens_unique),
+      unsubRate:        pct(unsubscribes,    delivered),
+      bounceRate:       pct(bounced,         delivered),
+      spamRate:         pct(spam_complaints, delivered),
+      revenue,
+      placedOrderRate:  pct(placedOrderCount, recipients),
+      placedOrderCount: placedOrderCount > 0 ? placedOrderCount : null,
+      aov:              placedOrderCount > 0 ? revenue / placedOrderCount : null,
     }
   })
 
-  // ── 4. Assemble monthly rows ─────────────────────────────────
-  const monthly: MonthlyRow[] = Object.entries(monthlyStatsMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, m]) => ({
-      month,
-      recipients:       m.recipients,
-      openRate:         pct(m.opens,  m.delivered),
-      clickRate:        pct(m.clicks, m.delivered),
-      unsubRate:        pct(m.unsubs, m.recipients),
-      bounceRate:       pct(m.bounces, m.recipients),
-      spamRate:         pct(m.spam,   m.recipients),
-      revenue:          m.revenue,
-      placedOrderCount: m.orders,
-      aov:              m.orders > 0 ? m.revenue / m.orders : null,
-    }))
+  // ── 4. Monthly data ──────────────────────────────────────────
+  // flow-values-report results have no date grouping (grouped by flow_message_id),
+  // so monthly breakdown is not available from this endpoint.
+  const monthly: MonthlyRow[] = []
 
   return NextResponse.json({ flows, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }

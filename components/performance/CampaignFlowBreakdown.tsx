@@ -227,57 +227,54 @@ type FlowSubTab = typeof FLOW_SUB_TABS[number]
 
 function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthlyRow[] } }) {
   const [subTab, setSubTab] = useState<FlowSubTab>('Summary')
-  const latestMonthData = data.monthly[data.monthly.length - 1] ?? null
+
+  // Aggregate across all flows (monthly[] is always [] for flows)
+  const flowsWithRecipients = data.flows.filter(f => f.recipients !== null && f.recipients > 0)
+  const totalRecipients = flowsWithRecipients.reduce((s, f) => s + (f.recipients ?? 0), 0)
+
+  function weightedRate(getRateFn: (f: FlowRow) => number | null): number | null {
+    if (totalRecipients === 0) return null
+    const sum = flowsWithRecipients.reduce((s, f) => {
+      const rate = getRateFn(f)
+      return rate !== null ? s + (rate / 100) * (f.recipients ?? 0) : s
+    }, 0)
+    return (sum / totalRecipients) * 100
+  }
+
+  // CTOR = total clicks / total opens
+  const totalOpens  = flowsWithRecipients.reduce((s, f) => s + ((f.openRate  ?? 0) / 100) * (f.recipients ?? 0), 0)
+  const totalClicks = flowsWithRecipients.reduce((s, f) => s + ((f.clickRate ?? 0) / 100) * (f.recipients ?? 0), 0)
+  const aggregatedCtor = totalOpens > 0 ? (totalClicks / totalOpens) * 100 : null
+
+  const aggregated = {
+    recipients: totalRecipients > 0 ? totalRecipients : null,
+    openRate:   weightedRate(f => f.openRate),
+    clickRate:  weightedRate(f => f.clickRate),
+    ctor:       aggregatedCtor,
+    unsubRate:  weightedRate(f => f.unsubRate),
+    bounceRate: weightedRate(f => f.bounceRate),
+    revenue:    data.flows.reduce((s, f) => s + (f.revenue ?? 0), 0) || null,
+  }
 
   return (
     <div>
       <SubTabBar tabs={FLOW_SUB_TABS} active={subTab} onChange={setSubTab} />
 
       {subTab === 'Summary' && (
-        <div className="space-y-4">
-          {latestMonthData && (
-            <p className="text-xs text-gray-400">
-              Showing <span className="font-medium text-gray-500">{monthLabel(latestMonthData.month)}</span>
-            </p>
-          )}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <MetricCard label="Open Rate"   value={fmtRate(latestMonthData?.openRate   ?? null)} />
-            <MetricCard label="Click Rate"  value={fmtRate(latestMonthData?.clickRate  ?? null)} />
-            <MetricCard label="Unsub Rate"  value={fmtRate(latestMonthData?.unsubRate  ?? null)} />
-            <MetricCard label="Revenue"     value={fmtCurrency(latestMonthData ? latestMonthData.revenue : null)} />
-            <MetricCard label="Recipients"  value={fmtCount(latestMonthData ? latestMonthData.recipients : null)} />
-            <MetricCard label="Bounce Rate" value={fmtRate(latestMonthData?.bounceRate ?? null)} />
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <MetricCard label="Open Rate"   value={fmtRate(aggregated.openRate)} />
+          <MetricCard label="Click Rate"  value={fmtRate(aggregated.clickRate)} />
+          <MetricCard label="CTOR"        value={fmtRate(aggregated.ctor)} />
+          <MetricCard label="Revenue"     value={fmtCurrency(aggregated.revenue)} />
+          <MetricCard label="Recipients"  value={fmtCount(aggregated.recipients)} />
+          <MetricCard label="Unsub Rate"  value={fmtRate(aggregated.unsubRate)} />
         </div>
       )}
 
       {subTab === 'Year to Date' && (
-        <TableWrap>
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/70">
-              {(['Month', 'Recipients', 'Open Rate', 'Click Rate', 'Unsub Rate', 'Revenue', 'Orders', 'AOV'] as const).map((h, i) => (
-                <th key={h} className={`${TH} ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.monthly.map(m => (
-              <tr key={m.month} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                <td className={`${TD} font-semibold text-gray-700`}>{monthLabel(m.month)}</td>
-                <td className={`${TD} text-right`}>{fmtCount(m.recipients)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(m.openRate)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(m.clickRate)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(m.unsubRate)}</td>
-                <td className={`${TD} text-right`}>{fmtCurrency(m.revenue)}</td>
-                <td className={`${TD} text-right`}>{fmtCount(m.placedOrderCount)}</td>
-                <td className={`${TD} text-right`}>{fmtCurrency(m.aov)}</td>
-              </tr>
-            ))}
-            {data.monthly.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 italic">No monthly data.</td></tr>
-            )}
-          </tbody>
-        </TableWrap>
+        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
+          Monthly flow data is not available from Klaviyo&apos;s API. Use the <span className="font-medium">Review</span> tab to see per-flow performance.
+        </div>
       )}
 
       {subTab === 'Review' && (

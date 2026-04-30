@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
         const json = await res.json()
         const results: Array<{ campaign_id: string; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
+        console.log('[campaigns] raw results[0]:', JSON.stringify(results[0], null, 2))
         for (const r of results) {
           statsMap[r.campaign_id] = r.statistics
         }

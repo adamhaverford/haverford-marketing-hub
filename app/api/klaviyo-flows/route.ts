@@ -245,3 +245,64 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ flows, monthly })
 }
+
+// Diagnostic: returns raw Klaviyo response shapes for the first page of flows
+// and the values-report for the first flow only. No transformation.
+// Usage: GET /api/klaviyo-flows?account=haverford&year=2026
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const account = searchParams.get('account') ?? ''
+  const year    = parseInt(searchParams.get('year') ?? '0', 10)
+
+  const apiKey = ACCOUNT_KEY_MAP[account]
+  if (!apiKey) {
+    return NextResponse.json({ error: `No API key for account: ${account}` }, { status: 400 })
+  }
+  const config = KLAVIYO_BRAND_CONFIG[account]
+  if (!config) {
+    return NextResponse.json({ error: `No brand config for account: ${account}` }, { status: 400 })
+  }
+
+  const headers = makeHeaders(apiKey)
+  const startDate = `${year}-01-01T00:00:00`
+  const endDate   = `${year + 1}-01-01T00:00:00`
+
+  // 1. First page of flows list
+  const listRes = await fetchWithRetry('https://a.klaviyo.com/api/flows/', { headers })
+  const listRaw = await listRes.json()
+
+  if (!listRes.ok) {
+    return NextResponse.json({ error: 'flows list failed', raw: listRaw }, { status: listRes.status })
+  }
+
+  // 2. Values-report for the first flow only
+  const firstId: string | undefined = listRaw.data?.[0]?.id
+  let reportRaw: unknown = null
+  if (firstId) {
+    const reportRes = await fetchWithRetry(
+      'https://a.klaviyo.com/api/flow-values-reports/',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          data: {
+            type: 'flow-values-report',
+            attributes: {
+              timeframe: { start: startDate, end: endDate },
+              flow_ids: [firstId],
+              conversion_metric_id: config.metrics.placedOrder,
+            },
+          },
+        }),
+      },
+    )
+    reportRaw = await reportRes.json()
+  }
+
+  return NextResponse.json({
+    _note: 'Raw Klaviyo responses — no transformation applied',
+    firstFlowId: firstId ?? null,
+    flowsList: listRaw,
+    valuesReport: reportRaw,
+  })
+}

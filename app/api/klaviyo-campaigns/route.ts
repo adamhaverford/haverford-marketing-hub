@@ -232,3 +232,68 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ campaigns, monthly })
 }
+
+// Diagnostic: returns raw Klaviyo response shapes for the first page of campaigns
+// and the values-report for the first campaign only. No transformation.
+// Usage: GET /api/klaviyo-campaigns?account=haverford&year=2026
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const account = searchParams.get('account') ?? ''
+  const year    = parseInt(searchParams.get('year') ?? '0', 10)
+
+  const apiKey = ACCOUNT_KEY_MAP[account]
+  if (!apiKey) {
+    return NextResponse.json({ error: `No API key for account: ${account}` }, { status: 400 })
+  }
+  const config = KLAVIYO_BRAND_CONFIG[account]
+  if (!config) {
+    return NextResponse.json({ error: `No brand config for account: ${account}` }, { status: 400 })
+  }
+
+  const headers = makeHeaders(apiKey)
+  const startDate = `${year}-01-01T00:00:00`
+  const endDate   = `${year + 1}-01-01T00:00:00`
+  const filter    = `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${startDate}),less-than(scheduled_at,${endDate}))`
+
+  // 1. First page of campaigns list
+  const listRes = await fetchWithRetry(
+    `https://a.klaviyo.com/api/campaigns/?filter=${encodeURIComponent(filter)}&include=campaign-messages`,
+    { headers },
+  )
+  const listRaw = await listRes.json()
+
+  if (!listRes.ok) {
+    return NextResponse.json({ error: 'campaigns list failed', raw: listRaw }, { status: listRes.status })
+  }
+
+  // 2. Values-report for the first campaign only
+  const firstId: string | undefined = listRaw.data?.[0]?.id
+  let reportRaw: unknown = null
+  if (firstId) {
+    const reportRes = await fetchWithRetry(
+      'https://a.klaviyo.com/api/campaign-values-reports/',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          data: {
+            type: 'campaign-values-report',
+            attributes: {
+              timeframe: { start: startDate, end: endDate },
+              campaign_ids: [firstId],
+              conversion_metric_id: config.metrics.placedOrder,
+            },
+          },
+        }),
+      },
+    )
+    reportRaw = await reportRes.json()
+  }
+
+  return NextResponse.json({
+    _note: 'Raw Klaviyo responses — no transformation applied',
+    firstCampaignId: firstId ?? null,
+    campaignsList: listRaw,
+    valuesReport: reportRaw,
+  })
+}

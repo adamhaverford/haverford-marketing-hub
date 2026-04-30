@@ -77,7 +77,7 @@ async function fetchMetricStaggered(
   index: number,
   measurements?: string[],
   attributedOnly?: boolean,
-): Promise<{ count: Record<string, number>; sumValue: Record<string, number> }> {
+): Promise<{ count: Record<string, number>; unique: Record<string, number>; sumValue: Record<string, number> }> {
   if (index > 0) await new Promise(r => setTimeout(r, index * STAGGER_MS))
   return fetchMetric(account, metricId, year, measurements, attributedOnly)
 }

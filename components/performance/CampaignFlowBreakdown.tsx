@@ -308,6 +308,8 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
           fetch('/api/klaviyo-flows',     { method: 'POST', headers, body }),
         ])
         const [cJson, fJson] = await Promise.all([cRes.json(), fRes.json()])
+        console.log('[CampaignFlowBreakdown] campaigns response:', JSON.stringify(cJson, null, 2))
+        console.log('[CampaignFlowBreakdown] flows response:', JSON.stringify(fJson, null, 2))
         if (cJson.error) throw new Error(`Campaigns: ${cJson.error}`)
         if (fJson.error) throw new Error(`Flows: ${fJson.error}`)
         setCampaignsData(cJson)

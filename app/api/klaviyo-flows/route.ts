@@ -42,7 +42,7 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
 
 function flowFilter(ids: string[]): string {
   if (ids.length === 1) return `equals(flow_id,"${ids[0]}")`
-  return `any(flow_id,[${ids.map(id => `"${id}"`).join(',')}])`
+  return `contains-any(flow_id,[${ids.map(id => `"${id}"`).join(',')}])`
 }
 
 interface RawFlow {

@@ -16,13 +16,14 @@ export default async function BrainstormPage() {
       .select(`
         id, text, brand_id, topic_type, status,
         proceeded_to_month, proceeded_to_topic_id,
-        created_by, created_at,
-        brand:brand_id(name, color)
+        created_by, created_at
       `)
       .order('created_at', { ascending: false }),
   ])
 
   if (ideasError) console.error('[brainstorm] ideas query error:', ideasError)
+
+  const brandMap = Object.fromEntries((brands ?? []).map(b => [b.id, b]))
 
   const ideas = (ideasRaw ?? []).map((i: {
     id: string
@@ -34,21 +35,23 @@ export default async function BrainstormPage() {
     proceeded_to_topic_id: string | null
     created_by: string | null
     created_at: string
-    brand: { name: string; color: string }[] | null
-  }) => ({
-    id: i.id,
-    text: i.text,
-    brand_id: i.brand_id,
-    topic_type: i.topic_type,
-    status: i.status,
-    proceeded_to_month: i.proceeded_to_month,
-    proceeded_to_topic_id: i.proceeded_to_topic_id,
-    created_by: i.created_by,
-    created_at: i.created_at,
-    brand_name: i.brand?.[0]?.name ?? null,
-    brand_color: i.brand?.[0]?.color ?? null,
-    creator_name: null,
-  }))
+  }) => {
+    const brand = i.brand_id ? (brandMap[i.brand_id] ?? null) : null
+    return {
+      id: i.id,
+      text: i.text,
+      brand_id: i.brand_id,
+      topic_type: i.topic_type,
+      status: i.status,
+      proceeded_to_month: i.proceeded_to_month,
+      proceeded_to_topic_id: i.proceeded_to_topic_id,
+      created_by: i.created_by,
+      created_at: i.created_at,
+      brand_name: brand?.name ?? null,
+      brand_color: brand?.color ?? null,
+      creator_name: null,
+    }
+  })
 
   console.log('[brainstorm] ideas fetched:', ideas.length)
 

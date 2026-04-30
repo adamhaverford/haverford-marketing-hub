@@ -140,6 +140,8 @@ export async function POST(req: NextRequest) {
 
   const statsMap: Record<string, Record<string, number>> = {}
 
+  const batchErrors: string[] = []
+
   await Promise.all(
     batches.map(async (batch, i) => {
       if (i > 0) await new Promise(r => setTimeout(r, i * STAGGER_MS))
@@ -162,7 +164,9 @@ export async function POST(req: NextRequest) {
           { method: 'POST', headers, body },
         )
         if (!res.ok) {
-          console.error(`campaign-values-reports batch ${i} failed: ${res.status}`)
+          const errText = await res.text()
+          console.error(`campaign-values-reports batch ${i} failed (${res.status}):`, errText)
+          batchErrors.push(`batch ${i} — HTTP ${res.status}: ${errText}`)
           return
         }
         const json = await res.json()
@@ -250,7 +254,7 @@ export async function POST(req: NextRequest) {
       revenue:    m.revenue,
     }))
 
-  return NextResponse.json({ campaigns, monthly })
+  return NextResponse.json({ campaigns, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }
 
 // Diagnostic: returns raw Klaviyo response shapes for the first page of campaigns

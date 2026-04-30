@@ -106,9 +106,11 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
   const [selectedMonth, setSelectedMonth] = useState(latestMonth)
   const [subTab, setSubTab] = useState<CampaignSubTab>('Summary')
 
-  const monthData = data.monthly.find(m => m.month === selectedMonth) ?? null
+  // If state was initialized before data arrived, fall back to the latest month
+  const effectiveMonth = data.monthly.some(m => m.month === selectedMonth) ? selectedMonth : latestMonth
+  const monthData = data.monthly.find(m => m.month === effectiveMonth) ?? null
   const campaignRows = data.campaigns
-    .filter(c => !selectedMonth || c.sentAt?.startsWith(selectedMonth))
+    .filter(c => !effectiveMonth || c.sentAt?.startsWith(effectiveMonth))
     .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
 
   return (
@@ -121,7 +123,7 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
             <select
-              value={selectedMonth}
+              value={effectiveMonth}
               onChange={e => setSelectedMonth(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
             >
@@ -154,7 +156,7 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
             {data.monthly.map(m => (
               <tr
                 key={m.month}
-                className={`border-b border-gray-50 last:border-0 ${m.month === selectedMonth ? 'bg-orange-50/40' : 'hover:bg-gray-50/50'}`}
+                className={`border-b border-gray-50 last:border-0 ${m.month === effectiveMonth ? 'bg-orange-50/40' : 'hover:bg-gray-50/50'}`}
               >
                 <td className={`${TD} font-semibold text-gray-700`}>{monthLabel(m.month)}</td>
                 <td className={`${TD} text-right`}>{fmtCount(m.recipients)}</td>
@@ -177,7 +179,7 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
             <select
-              value={selectedMonth}
+              value={effectiveMonth}
               onChange={e => setSelectedMonth(e.target.value)}
               className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
             >

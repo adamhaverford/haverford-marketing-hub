@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
   const statsMap: Record<string, FlowAccum> = {}
 
   const batchErrors: string[] = []
+  let totalResultEntries = 0
 
   await Promise.all(
     batches.map(async (batch, i) => {
@@ -184,6 +185,7 @@ export async function POST(req: NextRequest) {
         const results: Array<{ flow_id: string; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
         console.log('[flows] raw results[0]:', JSON.stringify(results[0], null, 2))
+        totalResultEntries += results.length
 
         for (const r of results) {
           if (!statsMap[r.flow_id]) {
@@ -210,6 +212,9 @@ export async function POST(req: NextRequest) {
       }
     })
   )
+
+  const statsMapKeys = Object.keys(statsMap)
+  console.log('[flows] statsMap summary — totalResultEntries:', totalResultEntries, '| statsMap keys:', statsMapKeys, '| first entry:', statsMapKeys[0] ? JSON.stringify(statsMap[statsMapKeys[0]]) : 'none')
 
   // ── 3. Assemble flow rows ────────────────────────────────────
   const flows: FlowRow[] = allFlows.map(f => {

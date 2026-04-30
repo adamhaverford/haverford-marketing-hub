@@ -74,55 +74,74 @@ function TableWrap({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SubTabBar<T extends string>({
+  tabs, active, onChange,
+}: { tabs: readonly T[]; active: T; onChange: (t: T) => void }) {
   return (
-    <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
-      {children}
-    </h4>
+    <div className="flex gap-0.5 mb-6 bg-gray-100/80 rounded-lg p-0.5 w-fit">
+      {tabs.map(tab => (
+        <button
+          key={tab}
+          onClick={() => onChange(tab)}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+            active === tab
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          {tab}
+        </button>
+      ))}
+    </div>
   )
 }
 
 // ── Campaigns section ─────────────────────────────────────────
 
+const CAMPAIGN_SUB_TABS = ['Summary', 'Year to Date', 'Review'] as const
+type CampaignSubTab = typeof CAMPAIGN_SUB_TABS[number]
+
 function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly: CampaignMonthlyRow[] } }) {
   const latestMonth = data.monthly[data.monthly.length - 1]?.month ?? ''
   const [selectedMonth, setSelectedMonth] = useState(latestMonth)
+  const [subTab, setSubTab] = useState<CampaignSubTab>('Summary')
 
-  const monthData  = data.monthly.find(m => m.month === selectedMonth) ?? null
+  const monthData = data.monthly.find(m => m.month === selectedMonth) ?? null
   const campaignRows = data.campaigns
     .filter(c => !selectedMonth || c.sentAt?.startsWith(selectedMonth))
     .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
 
   return (
-    <div className="space-y-8">
+    <div>
+      <SubTabBar tabs={CAMPAIGN_SUB_TABS} active={subTab} onChange={setSubTab} />
 
-      {/* Month filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
-        <select
-          value={selectedMonth}
-          onChange={e => setSelectedMonth(e.target.value)}
-          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
-        >
-          {data.monthly.map(m => (
-            <option key={m.month} value={m.month}>{monthLabel(m.month)}</option>
-          ))}
-        </select>
-      </div>
+      {subTab === 'Summary' && (
+        <div className="space-y-5">
+          {/* Month filter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
+            >
+              {data.monthly.map(m => (
+                <option key={m.month} value={m.month}>{monthLabel(m.month)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <MetricCard label="Open Rate"  value={fmtRate(monthData?.openRate  ?? null)} />
+            <MetricCard label="Click Rate" value={fmtRate(monthData?.clickRate ?? null)} />
+            <MetricCard label="CTOR"       value={fmtRate(monthData?.ctor      ?? null)} />
+            <MetricCard label="Revenue"    value={fmtCurrency(monthData ? monthData.revenue : null)} />
+            <MetricCard label="Recipients" value={fmtCount(monthData ? monthData.recipients : null)} />
+            <MetricCard label="Unsub Rate" value={fmtRate(monthData?.unsubRate ?? null)} />
+          </div>
+        </div>
+      )}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <MetricCard label="Open Rate"  value={fmtRate(monthData?.openRate  ?? null)} />
-        <MetricCard label="Click Rate" value={fmtRate(monthData?.clickRate ?? null)} />
-        <MetricCard label="CTOR"       value={fmtRate(monthData?.ctor      ?? null)} />
-        <MetricCard label="Revenue"    value={fmtCurrency(monthData ? monthData.revenue : null)} />
-        <MetricCard label="Recipients" value={fmtCount(monthData ? monthData.recipients : null)} />
-        <MetricCard label="Unsub Rate" value={fmtRate(monthData?.unsubRate ?? null)} />
-      </div>
-
-      {/* Year to Date table */}
-      <div>
-        <SectionHeading>Year to Date</SectionHeading>
+      {subTab === 'Year to Date' && (
         <TableWrap>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/70">
@@ -151,68 +170,86 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
             )}
           </tbody>
         </TableWrap>
-      </div>
+      )}
 
-      {/* Campaign Review table */}
-      <div>
-        <SectionHeading>Campaign Review — {selectedMonth ? monthLabel(selectedMonth) : 'All'}</SectionHeading>
-        <TableWrap>
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/70">
-              {(['Campaign', 'Date', 'Recipients', 'Open Rate', 'Click Rate', 'Bounce Rate', 'Unsub Rate', 'Revenue'] as const).map((h, i) => (
-                <th key={h} className={`${TH} ${i <= 1 ? 'text-left' : 'text-right'}`}>{h}</th>
+      {subTab === 'Review' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
+            >
+              {data.monthly.map(m => (
+                <option key={m.month} value={m.month}>{monthLabel(m.month)}</option>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {campaignRows.map(c => (
-              <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                <td className={`${TD} font-medium text-gray-900 max-w-xs truncate`} title={c.name}>{c.name}</td>
-                <td className={`${TD}`}>{c.sentAt ? c.sentAt.substring(0, 10) : '—'}</td>
-                <td className={`${TD} text-right`}>{fmtCount(c.recipients)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(c.openRate)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(c.clickRate)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(c.bounceRate)}</td>
-                <td className={`${TD} text-right`}>{fmtRate(c.unsubRate)}</td>
-                <td className={`${TD} text-right`}>{fmtCurrency(c.revenue)}</td>
+            </select>
+          </div>
+          <TableWrap>
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/70">
+                {(['Campaign', 'Date', 'Recipients', 'Open Rate', 'Click Rate', 'Bounce Rate', 'Unsub Rate', 'Revenue'] as const).map((h, i) => (
+                  <th key={h} className={`${TH} ${i <= 1 ? 'text-left' : 'text-right'}`}>{h}</th>
+                ))}
               </tr>
-            ))}
-            {campaignRows.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 italic">No campaigns for this month.</td></tr>
-            )}
-          </tbody>
-        </TableWrap>
-      </div>
+            </thead>
+            <tbody>
+              {campaignRows.map(c => (
+                <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                  <td className={`${TD} font-medium text-gray-900 max-w-xs truncate`} title={c.name}>{c.name}</td>
+                  <td className={`${TD}`}>{c.sentAt ? c.sentAt.substring(0, 10) : '—'}</td>
+                  <td className={`${TD} text-right`}>{fmtCount(c.recipients)}</td>
+                  <td className={`${TD} text-right`}>{fmtRate(c.openRate)}</td>
+                  <td className={`${TD} text-right`}>{fmtRate(c.clickRate)}</td>
+                  <td className={`${TD} text-right`}>{fmtRate(c.bounceRate)}</td>
+                  <td className={`${TD} text-right`}>{fmtRate(c.unsubRate)}</td>
+                  <td className={`${TD} text-right`}>{fmtCurrency(c.revenue)}</td>
+                </tr>
+              ))}
+              {campaignRows.length === 0 && (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 italic">No campaigns for this month.</td></tr>
+              )}
+            </tbody>
+          </TableWrap>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Flows section ─────────────────────────────────────────────
 
+const FLOW_SUB_TABS = ['Summary', 'Year to Date', 'Review'] as const
+type FlowSubTab = typeof FLOW_SUB_TABS[number]
+
 function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthlyRow[] } }) {
+  const [subTab, setSubTab] = useState<FlowSubTab>('Summary')
   const latestMonthData = data.monthly[data.monthly.length - 1] ?? null
 
   return (
-    <div className="space-y-8">
+    <div>
+      <SubTabBar tabs={FLOW_SUB_TABS} active={subTab} onChange={setSubTab} />
 
-      {/* Summary cards — most recent month */}
-      {latestMonthData && (
-        <p className="text-xs text-gray-400">
-          Showing <span className="font-medium text-gray-500">{monthLabel(latestMonthData.month)}</span>
-        </p>
+      {subTab === 'Summary' && (
+        <div className="space-y-4">
+          {latestMonthData && (
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-medium text-gray-500">{monthLabel(latestMonthData.month)}</span>
+            </p>
+          )}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <MetricCard label="Open Rate"   value={fmtRate(latestMonthData?.openRate   ?? null)} />
+            <MetricCard label="Click Rate"  value={fmtRate(latestMonthData?.clickRate  ?? null)} />
+            <MetricCard label="Unsub Rate"  value={fmtRate(latestMonthData?.unsubRate  ?? null)} />
+            <MetricCard label="Revenue"     value={fmtCurrency(latestMonthData ? latestMonthData.revenue : null)} />
+            <MetricCard label="Recipients"  value={fmtCount(latestMonthData ? latestMonthData.recipients : null)} />
+            <MetricCard label="Bounce Rate" value={fmtRate(latestMonthData?.bounceRate ?? null)} />
+          </div>
+        </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <MetricCard label="Open Rate"   value={fmtRate(latestMonthData?.openRate   ?? null)} />
-        <MetricCard label="Click Rate"  value={fmtRate(latestMonthData?.clickRate  ?? null)} />
-        <MetricCard label="Unsub Rate"  value={fmtRate(latestMonthData?.unsubRate  ?? null)} />
-        <MetricCard label="Revenue"     value={fmtCurrency(latestMonthData ? latestMonthData.revenue : null)} />
-        <MetricCard label="Recipients"  value={fmtCount(latestMonthData ? latestMonthData.recipients : null)} />
-        <MetricCard label="Bounce Rate" value={fmtRate(latestMonthData?.bounceRate ?? null)} />
-      </div>
 
-      {/* Year to Date table */}
-      <div>
-        <SectionHeading>Year to Date</SectionHeading>
+      {subTab === 'Year to Date' && (
         <TableWrap>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/70">
@@ -239,11 +276,9 @@ function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthly
             )}
           </tbody>
         </TableWrap>
-      </div>
+      )}
 
-      {/* Flows Review table */}
-      <div>
-        <SectionHeading>Flow Review</SectionHeading>
+      {subTab === 'Review' && (
         <TableWrap>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/70">
@@ -272,7 +307,7 @@ function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthly
             )}
           </tbody>
         </TableWrap>
-      </div>
+      )}
     </div>
   )
 }
@@ -285,11 +320,11 @@ interface Props {
 }
 
 export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
-  const [expanded, setExpanded]       = useState(false)
-  const [hasLoaded, setHasLoaded]     = useState(false)
-  const [loading, setLoading]         = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [activeTab, setActiveTab]     = useState<'Campaigns' | 'Flows'>('Campaigns')
+  const [expanded, setExpanded]           = useState(false)
+  const [hasLoaded, setHasLoaded]         = useState(false)
+  const [loading, setLoading]             = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const [activeTab, setActiveTab]         = useState<'Campaigns' | 'Flows'>('Campaigns')
   const [campaignsData, setCampaignsData] = useState<{ campaigns: CampaignRow[]; monthly: CampaignMonthlyRow[] } | null>(null)
   const [flowsData, setFlowsData]         = useState<{ flows: FlowRow[]; monthly: FlowMonthlyRow[] } | null>(null)
 
@@ -301,7 +336,7 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
       setLoading(true)
       setError(null)
       try {
-        const body = JSON.stringify({ account: klaviyoAccount, year })
+        const body    = JSON.stringify({ account: klaviyoAccount, year })
         const headers = { 'Content-Type': 'application/json' }
         const [cRes, fRes] = await Promise.all([
           fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body }),
@@ -321,6 +356,10 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
         setLoading(false)
       }
     }
+  }
+
+  function handleTopTabChange(tab: 'Campaigns' | 'Flows') {
+    setActiveTab(tab)
   }
 
   return (
@@ -357,12 +396,12 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
           {/* Content */}
           {!loading && hasLoaded && (
             <>
-              {/* Sub-tabs */}
-              <div className="flex gap-1 mt-5 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+              {/* Top tab bar — Campaigns / Flows */}
+              <div className="flex gap-1 mt-5 mb-3 bg-gray-100 rounded-xl p-1 w-fit">
                 {(['Campaigns', 'Flows'] as const).map(tab => (
                   <button
                     key={tab}
-                    onClick={() => setActiveTab(tab)}
+                    onClick={() => handleTopTabChange(tab)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       activeTab === tab
                         ? 'bg-white text-gray-900 shadow-sm'
@@ -374,11 +413,12 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
                 ))}
               </div>
 
+              {/* Section content — key resets sub-tab state on top-tab switch */}
               {activeTab === 'Campaigns' && campaignsData && (
-                <CampaignsSection data={campaignsData} />
+                <CampaignsSection key="campaigns" data={campaignsData} />
               )}
               {activeTab === 'Flows' && flowsData && (
-                <FlowsSection data={flowsData} />
+                <FlowsSection key="flows" data={flowsData} />
               )}
             </>
           )}

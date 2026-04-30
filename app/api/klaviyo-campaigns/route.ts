@@ -40,7 +40,7 @@ async function fetchWithRetry(url: string, options: RequestInit): Promise<Respon
 
 function campaignFilter(ids: string[]): string {
   if (ids.length === 1) return `equals(campaign_id,"${ids[0]}")`
-  return `any(campaign_id,[${ids.map(id => `"${id}"`).join(',')}])`
+  return `contains-any(campaign_id,[${ids.map(id => `"${id}"`).join(',')}])`
 }
 
 interface RawCampaign {

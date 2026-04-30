@@ -8,7 +8,7 @@ export default async function BrainstormPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: brands }, { data: ideasRaw }] = await Promise.all([
+  const [{ data: profile }, { data: brands }, { data: ideasRaw, error: ideasError }] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', user.id).single(),
     supabase.from('brands').select('id, name, color').eq('active', true).order('name'),
     supabase
@@ -22,6 +22,8 @@ export default async function BrainstormPage() {
       `)
       .order('created_at', { ascending: false }),
   ])
+
+  if (ideasError) console.error('[brainstorm] ideas query error:', ideasError)
 
   const ideas = (ideasRaw ?? []).map((i: {
     id: string
@@ -49,6 +51,8 @@ export default async function BrainstormPage() {
     brand_color: i.brand?.[0]?.color ?? null,
     creator_name: i.creator?.[0]?.full_name ?? null,
   }))
+
+  console.log('[brainstorm] ideas fetched:', ideas.length)
 
   return (
     <BrainstormClient

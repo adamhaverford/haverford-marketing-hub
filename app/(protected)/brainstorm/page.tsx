@@ -33,8 +33,8 @@ export default async function BrainstormPage() {
     proceeded_to_topic_id: string | null
     created_by: string | null
     created_at: string
-    brand: { name: string; color: string } | null
-    creator: { full_name: string } | null
+    brand: { name: string; color: string }[] | null
+    creator: { full_name: string }[] | null
   }) => ({
     id: i.id,
     text: i.text,
@@ -45,9 +45,9 @@ export default async function BrainstormPage() {
     proceeded_to_topic_id: i.proceeded_to_topic_id,
     created_by: i.created_by,
     created_at: i.created_at,
-    brand_name: i.brand?.name ?? null,
-    brand_color: i.brand?.color ?? null,
-    creator_name: i.creator?.full_name ?? null,
+    brand_name: i.brand?.[0]?.name ?? null,
+    brand_color: i.brand?.[0]?.color ?? null,
+    creator_name: i.creator?.[0]?.full_name ?? null,
   }))
 
   return (

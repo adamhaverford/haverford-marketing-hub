@@ -445,7 +445,7 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
                 </label>
                 <select
                   value={addTopicType}
-                  onChange={e => setAddTopicType(e.target.value as any)}
+                  onChange={e => setAddTopicType(e.target.value as 'evergreen' | 'promotional' | '')}
                   className={INPUT_CLS}
                 >
                   <option value="">— None —</option>

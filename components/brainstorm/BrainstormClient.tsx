@@ -170,7 +170,7 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
           type:        proceedType,
           title:       proceedingIdea.text,
           description: null,
-          created_by:  null,
+          created_by:  currentUserId,
           status:      'proposed',
           sort_order,
         })
@@ -291,7 +291,7 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
               </span>
             )}
             <span className="text-xs text-gray-400">
-              {idea.created_by === currentUserId ? 'You' : 'Someone'} · {timeAgo(idea.created_at)}
+              {idea.creator_name ?? 'Unknown'} · {timeAgo(idea.created_at)}
             </span>
             {inArchive && (
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${

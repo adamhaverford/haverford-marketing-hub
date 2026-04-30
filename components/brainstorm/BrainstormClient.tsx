@@ -170,7 +170,7 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
           type:        proceedType,
           title:       proceedingIdea.text,
           description: null,
-          created_by:  currentUserId,
+          created_by:  null,
           status:      'proposed',
           sort_order,
         })

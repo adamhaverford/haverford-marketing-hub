@@ -362,21 +362,22 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100">
+    <div>
       {/* Accordion header */}
       <button
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50/50 rounded-2xl transition-colors"
+        className={`w-full flex items-center justify-between px-5 py-4 text-left transition-colors ${expanded ? 'rounded-t-xl' : 'rounded-xl'}`}
+        style={{ backgroundColor: '#E8611A' }}
       >
-        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
+        <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
           Campaign &amp; Flow Breakdown
         </h3>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-white transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Accordion body */}
       {expanded && (
-        <div className="border-t border-gray-100 px-5 pb-6">
+        <div className="border border-t-0 border-orange-200 rounded-b-xl px-5 pb-6">
           {/* Loading */}
           {loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">

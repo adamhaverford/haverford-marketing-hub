@@ -14,10 +14,10 @@ const FLOW_STATISTICS = [
   'opens_unique',
   'clicks_unique',
   'delivered',
-  'bounces_unique',
-  'unsubscribes_unique',
+  'bounced',
+  'unsubscribed',
   'revenue_per_recipient',
-  'placed_order',
+  'placed_order_rate',
   'spam_complaints',
 ]
 
@@ -194,17 +194,17 @@ export async function POST(req: NextRequest) {
           }
           const ms      = monthlyStatsMap[mk]
           const del     = r.statistics.delivered              ?? 0
-          const bounces = r.statistics.bounces_unique        ?? 0
+          const bounces = r.statistics.bounced        ?? 0
           ms.delivered  += del
           ms.bounces    += bounces
           ms.recipients  = ms.delivered + ms.bounces
           ms.opens      += r.statistics.opens_unique          ?? 0
           ms.clicks     += r.statistics.clicks_unique         ?? 0
-          ms.unsubs     += r.statistics.unsubscribes_unique   ?? 0
+          ms.unsubs     += r.statistics.unsubscribed   ?? 0
           ms.spam       += r.statistics.spam_complaints       ?? 0
           // revenue_per_recipient × delivered = total revenue for this result row
           ms.revenue    += (r.statistics.revenue_per_recipient ?? 0) * del
-          ms.orders     += r.statistics.placed_order          ?? 0
+          ms.orders     += r.statistics.placed_order_rate          ?? 0
         }
       } catch (err) {
         console.error(`flow-values-reports batch ${i} error:`, err)
@@ -217,13 +217,13 @@ export async function POST(req: NextRequest) {
     const stats = statsMap[f.id] ?? {}
 
     const delivered = stats.delivered               ?? null
-    const bounces   = stats.bounces_unique          ?? null
+    const bounces   = stats.bounced          ?? null
     const opens     = stats.opens_unique            ?? null
     const clicks    = stats.clicks_unique           ?? null
-    const unsubs    = stats.unsubscribes_unique     ?? null
+    const unsubs    = stats.unsubscribed     ?? null
     const spam      = stats.spam_complaints         ?? null
     const revPPR    = stats.revenue_per_recipient   ?? null
-    const orders    = stats.placed_order            ?? null
+    const orders    = stats.placed_order_rate            ?? null
     // revenue_per_recipient × delivered = total revenue
     const rev        = (revPPR !== null && delivered !== null) ? revPPR * delivered : null
     const recipients = (delivered !== null && bounces !== null) ? delivered + bounces : null

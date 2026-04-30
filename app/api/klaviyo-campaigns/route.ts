@@ -14,10 +14,10 @@ const CAMPAIGN_STATISTICS = [
   'opens_unique',
   'clicks_unique',
   'delivered',
-  'bounces_unique',
-  'unsubscribes_unique',
+  'bounced',
+  'unsubscribed',
   'revenue_per_recipient',
-  'placed_order',
+  'placed_order_rate',
   'spam_complaints',
 ]
 
@@ -183,12 +183,12 @@ export async function POST(req: NextRequest) {
     const stats   = statsMap[c.id] ?? {}
 
     const delivered = stats.delivered               ?? null
-    const bounces   = stats.bounces_unique           ?? null
+    const bounces   = stats.bounced           ?? null
     const opens     = stats.opens_unique             ?? null
     const clicks    = stats.clicks_unique            ?? null
-    const unsubs    = stats.unsubscribes_unique      ?? null
+    const unsubs    = stats.unsubscribed      ?? null
     const revPPR    = stats.revenue_per_recipient    ?? null
-    const orders    = stats.placed_order             ?? null
+    const orders    = stats.placed_order_rate             ?? null
     // revenue_per_recipient × delivered = total revenue
     const rev        = (revPPR !== null && delivered !== null) ? revPPR * delivered : null
     // recipients = delivered + bounced (no explicit recipients stat)
@@ -225,10 +225,10 @@ export async function POST(req: NextRequest) {
     const m = monthMap[mk]
     const del     = stats.delivered            ?? 0
     m.delivered  += del
-    m.bounces    += stats.bounces_unique      ?? 0
+    m.bounces    += stats.bounced      ?? 0
     m.opens      += stats.opens_unique        ?? 0
     m.clicks     += stats.clicks_unique       ?? 0
-    m.unsubs     += stats.unsubscribes_unique ?? 0
+    m.unsubs     += stats.unsubscribed ?? 0
     // revenue_per_recipient × delivered = total revenue for this campaign
     m.revenue    += (stats.revenue_per_recipient ?? 0) * del
     m.recipients  = m.delivered + m.bounces

@@ -208,7 +208,7 @@ export default function PerformanceClient({ brands }: Props) {
 
           {/* Tab content */}
           {activeTab === 'Overview' && (
-            <OverviewTab data={data} brand={selectedBrand?.name ?? ''} year={selectedYear} />
+            <OverviewTab data={data} brand={selectedBrand?.name ?? ''} year={selectedYear} klaviyoAccount={selectedBrand?.klaviyo_account} />
           )}
           {activeTab === 'Spam' && (
             <SpamTab data={data} year={selectedYear} />

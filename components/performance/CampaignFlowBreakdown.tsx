@@ -1,0 +1,387 @@
+'use client'
+
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { fmtRate, fmtCurrency, fmtCount, monthLabel } from '@/lib/performance'
+import MetricCard from './MetricCard'
+
+// ── API response types ────────────────────────────────────────
+
+interface CampaignRow {
+  id: string
+  name: string
+  sentAt: string
+  recipients: number | null
+  openRate: number | null
+  clickRate: number | null
+  ctor: number | null
+  unsubRate: number | null
+  bounceRate: number | null
+  revenue: number | null
+  placedOrderRate: number | null
+}
+
+interface CampaignMonthlyRow {
+  month: string
+  recipients: number
+  openRate: number | null
+  clickRate: number | null
+  ctor: number | null
+  unsubRate: number | null
+  bounceRate: number | null
+  revenue: number
+}
+
+interface FlowRow {
+  id: string
+  name: string
+  recipients: number | null
+  openRate: number | null
+  clickRate: number | null
+  ctor: number | null
+  unsubRate: number | null
+  bounceRate: number | null
+  spamRate: number | null
+  revenue: number | null
+  placedOrderRate: number | null
+  placedOrderCount: number | null
+  aov: number | null
+}
+
+interface FlowMonthlyRow {
+  month: string
+  recipients: number
+  openRate: number | null
+  clickRate: number | null
+  unsubRate: number | null
+  bounceRate: number | null
+  spamRate: number | null
+  revenue: number
+  placedOrderCount: number
+  aov: number | null
+}
+
+// ── Shared table primitives ───────────────────────────────────
+
+const TH = 'px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap'
+const TD = 'px-4 py-3 whitespace-nowrap text-gray-600 text-sm'
+
+function TableWrap({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100">
+      <table className="w-full text-sm">{children}</table>
+    </div>
+  )
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h4 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
+      {children}
+    </h4>
+  )
+}
+
+// ── Campaigns section ─────────────────────────────────────────
+
+function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly: CampaignMonthlyRow[] } }) {
+  const latestMonth = data.monthly[data.monthly.length - 1]?.month ?? ''
+  const [selectedMonth, setSelectedMonth] = useState(latestMonth)
+
+  const monthData  = data.monthly.find(m => m.month === selectedMonth) ?? null
+  const campaignRows = data.campaigns
+    .filter(c => !selectedMonth || c.sentAt?.startsWith(selectedMonth))
+    .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+
+  return (
+    <div className="space-y-8">
+
+      {/* Month filter */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
+        <select
+          value={selectedMonth}
+          onChange={e => setSelectedMonth(e.target.value)}
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
+        >
+          {data.monthly.map(m => (
+            <option key={m.month} value={m.month}>{monthLabel(m.month)}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <MetricCard label="Open Rate"  value={fmtRate(monthData?.openRate  ?? null)} />
+        <MetricCard label="Click Rate" value={fmtRate(monthData?.clickRate ?? null)} />
+        <MetricCard label="CTOR"       value={fmtRate(monthData?.ctor      ?? null)} />
+        <MetricCard label="Revenue"    value={fmtCurrency(monthData ? monthData.revenue : null)} />
+        <MetricCard label="Recipients" value={fmtCount(monthData ? monthData.recipients : null)} />
+        <MetricCard label="Unsub Rate" value={fmtRate(monthData?.unsubRate ?? null)} />
+      </div>
+
+      {/* Year to Date table */}
+      <div>
+        <SectionHeading>Year to Date</SectionHeading>
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/70">
+              {(['Month', 'Recipients', 'Open Rate', 'Click Rate', 'CTOR', 'Unsub Rate', 'Revenue'] as const).map((h, i) => (
+                <th key={h} className={`${TH} ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.monthly.map(m => (
+              <tr
+                key={m.month}
+                className={`border-b border-gray-50 last:border-0 ${m.month === selectedMonth ? 'bg-orange-50/40' : 'hover:bg-gray-50/50'}`}
+              >
+                <td className={`${TD} font-semibold text-gray-700`}>{monthLabel(m.month)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(m.recipients)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.openRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.clickRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.ctor)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.unsubRate)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(m.revenue)}</td>
+              </tr>
+            ))}
+            {data.monthly.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 italic">No monthly data.</td></tr>
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
+
+      {/* Campaign Review table */}
+      <div>
+        <SectionHeading>Campaign Review — {selectedMonth ? monthLabel(selectedMonth) : 'All'}</SectionHeading>
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/70">
+              {(['Campaign', 'Date', 'Recipients', 'Open Rate', 'Click Rate', 'Bounce Rate', 'Unsub Rate', 'Revenue'] as const).map((h, i) => (
+                <th key={h} className={`${TH} ${i <= 1 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {campaignRows.map(c => (
+              <tr key={c.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                <td className={`${TD} font-medium text-gray-900 max-w-xs truncate`} title={c.name}>{c.name}</td>
+                <td className={`${TD}`}>{c.sentAt ? c.sentAt.substring(0, 10) : '—'}</td>
+                <td className={`${TD} text-right`}>{fmtCount(c.recipients)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(c.openRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(c.clickRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(c.bounceRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(c.unsubRate)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(c.revenue)}</td>
+              </tr>
+            ))}
+            {campaignRows.length === 0 && (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 italic">No campaigns for this month.</td></tr>
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
+    </div>
+  )
+}
+
+// ── Flows section ─────────────────────────────────────────────
+
+function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthlyRow[] } }) {
+  const latestMonthData = data.monthly[data.monthly.length - 1] ?? null
+
+  return (
+    <div className="space-y-8">
+
+      {/* Summary cards — most recent month */}
+      {latestMonthData && (
+        <p className="text-xs text-gray-400">
+          Showing <span className="font-medium text-gray-500">{monthLabel(latestMonthData.month)}</span>
+        </p>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <MetricCard label="Open Rate"   value={fmtRate(latestMonthData?.openRate   ?? null)} />
+        <MetricCard label="Click Rate"  value={fmtRate(latestMonthData?.clickRate  ?? null)} />
+        <MetricCard label="Unsub Rate"  value={fmtRate(latestMonthData?.unsubRate  ?? null)} />
+        <MetricCard label="Revenue"     value={fmtCurrency(latestMonthData ? latestMonthData.revenue : null)} />
+        <MetricCard label="Recipients"  value={fmtCount(latestMonthData ? latestMonthData.recipients : null)} />
+        <MetricCard label="Bounce Rate" value={fmtRate(latestMonthData?.bounceRate ?? null)} />
+      </div>
+
+      {/* Year to Date table */}
+      <div>
+        <SectionHeading>Year to Date</SectionHeading>
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/70">
+              {(['Month', 'Recipients', 'Open Rate', 'Click Rate', 'Unsub Rate', 'Revenue', 'Orders', 'AOV'] as const).map((h, i) => (
+                <th key={h} className={`${TH} ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.monthly.map(m => (
+              <tr key={m.month} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                <td className={`${TD} font-semibold text-gray-700`}>{monthLabel(m.month)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(m.recipients)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.openRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.clickRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.unsubRate)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(m.revenue)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(m.placedOrderCount)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(m.aov)}</td>
+              </tr>
+            ))}
+            {data.monthly.length === 0 && (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 italic">No monthly data.</td></tr>
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
+
+      {/* Flows Review table */}
+      <div>
+        <SectionHeading>Flow Review</SectionHeading>
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/70">
+              {(['Flow Name', 'Recipients', 'Open Rate', 'Click Rate', 'Bounce Rate', 'Unsub Rate', 'Spam', 'Orders', 'AOV', 'Revenue'] as const).map((h, i) => (
+                <th key={h} className={`${TH} ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.flows.map(f => (
+              <tr key={f.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                <td className={`${TD} font-medium text-gray-900 max-w-xs truncate`} title={f.name}>{f.name}</td>
+                <td className={`${TD} text-right`}>{fmtCount(f.recipients)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(f.openRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(f.clickRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(f.bounceRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(f.unsubRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(f.spamRate)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(f.placedOrderCount)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(f.aov)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(f.revenue)}</td>
+              </tr>
+            ))}
+            {data.flows.length === 0 && (
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400 italic">No flows data.</td></tr>
+            )}
+          </tbody>
+        </TableWrap>
+      </div>
+    </div>
+  )
+}
+
+// ── Main accordion component ──────────────────────────────────
+
+interface Props {
+  klaviyoAccount: string
+  year: number
+}
+
+export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
+  const [expanded, setExpanded]       = useState(false)
+  const [hasLoaded, setHasLoaded]     = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [activeTab, setActiveTab]     = useState<'Campaigns' | 'Flows'>('Campaigns')
+  const [campaignsData, setCampaignsData] = useState<{ campaigns: CampaignRow[]; monthly: CampaignMonthlyRow[] } | null>(null)
+  const [flowsData, setFlowsData]         = useState<{ flows: FlowRow[]; monthly: FlowMonthlyRow[] } | null>(null)
+
+  async function handleToggle() {
+    const opening = !expanded
+    setExpanded(opening)
+
+    if (opening && !hasLoaded) {
+      setLoading(true)
+      setError(null)
+      try {
+        const body = JSON.stringify({ account: klaviyoAccount, year })
+        const headers = { 'Content-Type': 'application/json' }
+        const [cRes, fRes] = await Promise.all([
+          fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body }),
+          fetch('/api/klaviyo-flows',     { method: 'POST', headers, body }),
+        ])
+        const [cJson, fJson] = await Promise.all([cRes.json(), fRes.json()])
+        if (cJson.error) throw new Error(`Campaigns: ${cJson.error}`)
+        if (fJson.error) throw new Error(`Flows: ${fJson.error}`)
+        setCampaignsData(cJson)
+        setFlowsData(fJson)
+        setHasLoaded(true)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load breakdown data')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-gray-100">
+      {/* Accordion header */}
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50/50 rounded-2xl transition-colors"
+      >
+        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
+          Campaign &amp; Flow Breakdown
+        </h3>
+        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Accordion body */}
+      {expanded && (
+        <div className="border-t border-gray-100 px-5 pb-6">
+          {/* Loading */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-8 h-8 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin" />
+              <p className="text-sm text-gray-400">Loading campaign and flow data…</p>
+            </div>
+          )}
+
+          {/* Error */}
+          {!loading && error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Content */}
+          {!loading && hasLoaded && (
+            <>
+              {/* Sub-tabs */}
+              <div className="flex gap-1 mt-5 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+                {(['Campaigns', 'Flows'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activeTab === tab
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'Campaigns' && campaignsData && (
+                <CampaignsSection data={campaignsData} />
+              )}
+              {activeTab === 'Flows' && flowsData && (
+                <FlowsSection data={flowsData} />
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

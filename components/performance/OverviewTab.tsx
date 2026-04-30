@@ -7,11 +7,13 @@ import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
 import OpenRateChart from './OpenRateChart'
 import SendReportModal from './SendReportModal'
+import CampaignFlowBreakdown from './CampaignFlowBreakdown'
 
 interface OverviewTabProps {
   data: MonthData[]
   brand: string
   year: number
+  klaviyoAccount?: string | null
 }
 
 function trend(current: number | null, prev: number | null): 'up' | 'down' | 'flat' | null {
@@ -39,7 +41,7 @@ function trendLabel(prevMonth: MonthData | null, current: number | null, prevVal
   return pct !== null ? `vs ${monthLabel(prevMonth.month)}: ${pct}` : undefined
 }
 
-export default function OverviewTab({ data, brand, year }: OverviewTabProps) {
+export default function OverviewTab({ data, brand, year, klaviyoAccount }: OverviewTabProps) {
   const [reportMonth, setReportMonth] = useState<MonthData | null>(null)
 
   const now = new Date()
@@ -117,6 +119,11 @@ export default function OverviewTab({ data, brand, year }: OverviewTabProps) {
         </h3>
         <MonthlyTable data={data} currentMonth={currentKey} />
       </div>
+
+      {/* Campaign & Flow Breakdown accordion */}
+      {klaviyoAccount && (
+        <CampaignFlowBreakdown klaviyoAccount={klaviyoAccount} year={year} />
+      )}
 
       {reportMonth && (
         <SendReportModal

@@ -23,6 +23,13 @@ export default async function BrainstormPage() {
 
   if (ideasError) console.error('[brainstorm] ideas query error:', ideasError)
 
+  // Fetch profiles for all idea creators in one query
+  const creatorIds = [...new Set((ideasRaw ?? []).map((i: { created_by: string | null }) => i.created_by).filter(Boolean))] as string[]
+  const { data: profilesData } = creatorIds.length > 0
+    ? await supabase.from('profiles').select('id, full_name, email').in('id', creatorIds)
+    : { data: [] }
+  const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.id, p]))
+
   const brandMap = Object.fromEntries((brands ?? []).map(b => [b.id, b]))
 
   const ideas = (ideasRaw ?? []).map((i: {
@@ -36,7 +43,10 @@ export default async function BrainstormPage() {
     created_by: string | null
     created_at: string
   }) => {
-    const brand = i.brand_id ? (brandMap[i.brand_id] ?? null) : null
+    const brand   = i.brand_id   ? (brandMap[i.brand_id]     ?? null) : null
+    const creator = i.created_by ? (profileMap[i.created_by] ?? null) : null
+    const creatorName = creator?.full_name
+      || (creator?.email ? creator.email.split('@')[0] : null)
     return {
       id: i.id,
       text: i.text,
@@ -47,9 +57,9 @@ export default async function BrainstormPage() {
       proceeded_to_topic_id: i.proceeded_to_topic_id,
       created_by: i.created_by,
       created_at: i.created_at,
-      brand_name: brand?.name ?? null,
-      brand_color: brand?.color ?? null,
-      creator_name: null,
+      brand_name:   brand?.name  ?? null,
+      brand_color:  brand?.color ?? null,
+      creator_name: creatorName,
     }
   })
 

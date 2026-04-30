@@ -151,18 +151,15 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
 
     setProceedLoading(true)
     try {
-      // Get max sort_order for target brand/month/type slot
-      const { data: existing } = await supabase
+      // Count existing topics for this brand/month/type to determine sort_order
+      const { count } = await supabase
         .from('planning_topics')
-        .select('sort_order')
+        .select('id', { count: 'exact', head: true })
         .eq('brand_id', brandId)
         .eq('month', proceedMonth)
         .eq('type', proceedType)
-        .order('sort_order', { ascending: false })
-        .limit(1)
-        .maybeSingle()
 
-      const sort_order = (existing?.sort_order ?? 0) + 1
+      const sort_order = (count ?? 0) + 1
 
       // Create planning topic
       const { data: topic, error: topicErr } = await supabase
@@ -180,7 +177,10 @@ export default function BrainstormClient({ initialIdeas, brands, currentUserId, 
         .select('id')
         .single()
 
-      if (topicErr) throw topicErr
+      if (topicErr) {
+        console.error('[brainstorm] planning_topics insert error:', topicErr)
+        throw topicErr
+      }
 
       // Update brainstorm idea
       const { error: ideaErr } = await supabase

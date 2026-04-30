@@ -14,11 +14,11 @@ const CAMPAIGN_STATISTICS = [
   'opens_unique',
   'clicks_unique',
   'delivered',
-  'bounced_total',
-  'unsubscribed',
-  'revenue',
-  'placed_order_count',
-  'spam_complaints_unique',
+  'bounces_unique',
+  'unsubscribes_unique',
+  'revenue_per_recipient',
+  'placed_order',
+  'spam_complaints',
 ]
 
 function makeHeaders(apiKey: string) {
@@ -182,13 +182,15 @@ export async function POST(req: NextRequest) {
     const sentAt  = c.attributes.scheduled_at ?? c.attributes.send_time ?? ''
     const stats   = statsMap[c.id] ?? {}
 
-    const delivered = stats.delivered          ?? null
-    const bounces   = stats.bounced_total      ?? null
-    const opens     = stats.opens_unique       ?? null
-    const clicks    = stats.clicks_unique      ?? null
-    const unsubs    = stats.unsubscribed       ?? null
-    const rev       = stats.revenue            ?? null
-    const orders    = stats.placed_order_count ?? null
+    const delivered = stats.delivered               ?? null
+    const bounces   = stats.bounces_unique           ?? null
+    const opens     = stats.opens_unique             ?? null
+    const clicks    = stats.clicks_unique            ?? null
+    const unsubs    = stats.unsubscribes_unique      ?? null
+    const revPPR    = stats.revenue_per_recipient    ?? null
+    const orders    = stats.placed_order             ?? null
+    // revenue_per_recipient × delivered = total revenue
+    const rev        = (revPPR !== null && delivered !== null) ? revPPR * delivered : null
     // recipients = delivered + bounced (no explicit recipients stat)
     const recipients = (delivered !== null && bounces !== null) ? delivered + bounces : null
 
@@ -221,12 +223,14 @@ export async function POST(req: NextRequest) {
       monthMap[mk] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, delivered: 0, revenue: 0 }
     }
     const m = monthMap[mk]
-    m.delivered  += stats.delivered          ?? 0
-    m.bounces    += stats.bounced_total      ?? 0
-    m.opens      += stats.opens_unique       ?? 0
-    m.clicks     += stats.clicks_unique      ?? 0
-    m.unsubs     += stats.unsubscribed       ?? 0
-    m.revenue    += stats.revenue            ?? 0
+    const del     = stats.delivered            ?? 0
+    m.delivered  += del
+    m.bounces    += stats.bounces_unique      ?? 0
+    m.opens      += stats.opens_unique        ?? 0
+    m.clicks     += stats.clicks_unique       ?? 0
+    m.unsubs     += stats.unsubscribes_unique ?? 0
+    // revenue_per_recipient × delivered = total revenue for this campaign
+    m.revenue    += (stats.revenue_per_recipient ?? 0) * del
     m.recipients  = m.delivered + m.bounces
   }
 

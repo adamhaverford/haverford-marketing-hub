@@ -182,19 +182,21 @@ export async function POST(req: NextRequest) {
         }
         const json = await res.json()
 
-        const results: Array<{ flow_id: string; statistics: Record<string, number> }> =
+        const results: Array<{ groupings: { flow_id: string }; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
         console.log('[flows] raw results[0]:', JSON.stringify(results[0], null, 2))
         totalResultEntries += results.length
 
         for (const r of results) {
-          if (!statsMap[r.flow_id]) {
-            statsMap[r.flow_id] = {
+          const flowId = r.groupings?.flow_id
+          if (!flowId) continue
+          if (!statsMap[flowId]) {
+            statsMap[flowId] = {
               delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
               unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
             }
           }
-          const acc = statsMap[r.flow_id]
+          const acc = statsMap[flowId]
           const del = r.statistics.delivered ?? 0
           acc.delivered       += del
           acc.bounced         += r.statistics.bounced           ?? 0

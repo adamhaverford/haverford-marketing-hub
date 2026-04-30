@@ -166,11 +166,13 @@ export async function POST(req: NextRequest) {
           return
         }
         const json = await res.json()
-        const results: Array<{ campaign_id: string; statistics: Record<string, number> }> =
+        const results: Array<{ groupings: { campaign_id: string }; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
         console.log('[campaigns] raw results[0]:', JSON.stringify(results[0], null, 2))
         for (const r of results) {
-          statsMap[r.campaign_id] = r.statistics
+          const campaignId = r.groupings?.campaign_id
+          if (!campaignId) continue
+          statsMap[campaignId] = r.statistics
         }
       } catch (err) {
         console.error(`campaign-values-reports batch ${i} error:`, err)

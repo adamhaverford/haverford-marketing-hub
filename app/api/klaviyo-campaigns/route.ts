@@ -146,6 +146,13 @@ export async function POST(req: NextRequest) {
     batches.map(async (batch, i) => {
       if (i > 0) await new Promise(r => setTimeout(r, i * STAGGER_MS))
 
+      const EASTER_ID = '01KM1MA27HAA3Y96AZ6V6ZD4JF'
+      console.log(
+        `[campaigns] batch ${i}: sending ${batch.length} IDs` +
+        (batch.includes(EASTER_ID) ? ` *** contains easter26_ends (${EASTER_ID}) ***` : ''),
+      )
+      if (i === 0) console.log(`[campaigns] timeframe: ${startDate} → ${endDate}`)
+
       const body = JSON.stringify({
         data: {
           type: 'campaign-values-report',
@@ -172,6 +179,7 @@ export async function POST(req: NextRequest) {
         const json = await res.json()
         const results: Array<{ groupings: { campaign_id: string }; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
+        console.log(`[campaigns] batch ${i}: received ${results.length} result entries`)
         console.log('[campaigns] raw results[0]:', JSON.stringify(results[0], null, 2))
         for (const r of results) {
           const campaignId = r.groupings?.campaign_id

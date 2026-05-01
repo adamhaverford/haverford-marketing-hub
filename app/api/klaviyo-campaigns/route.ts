@@ -145,6 +145,7 @@ export async function POST(req: NextRequest) {
   }
 
   const statsMap: Record<string, Record<string, number>> = {}
+  let totalResultEntries = 0
 
   const batchErrors: string[] = []
 
@@ -186,10 +187,27 @@ export async function POST(req: NextRequest) {
           json.data?.attributes?.results ?? []
         console.log(`[campaigns] batch ${i}: received ${results.length} result entries`)
         console.log('[campaigns] raw results[0]:', JSON.stringify(results[0], null, 2))
+        totalResultEntries += results.length
         for (const r of results) {
           const campaignId = r.groupings?.campaign_id
           if (!campaignId) continue
-          statsMap[campaignId] = r.statistics
+          const s = r.statistics
+          if (!statsMap[campaignId]) {
+            statsMap[campaignId] = { ...s }
+          } else {
+            // Multiple rows per campaign (one per message): MAX delivered to avoid
+            // double-counting recipients; SUM engagement counts across messages.
+            const e = statsMap[campaignId]
+            e.delivered     = Math.max(e.delivered     ?? 0, s.delivered     ?? 0)
+            e.opens_unique  = (e.opens_unique  ?? 0) + (s.opens_unique  ?? 0)
+            e.clicks_unique = (e.clicks_unique ?? 0) + (s.clicks_unique ?? 0)
+            e.bounced       = Math.max(e.bounced       ?? 0, s.bounced       ?? 0)
+            e.unsubscribes  = (e.unsubscribes  ?? 0) + (s.unsubscribes  ?? 0)
+            e.spam_complaints = (e.spam_complaints ?? 0) + (s.spam_complaints ?? 0)
+            // revenue_per_recipient is a rate — keep the higher value
+            e.revenue_per_recipient = Math.max(e.revenue_per_recipient ?? 0, s.revenue_per_recipient ?? 0)
+            e.conversion_rate       = Math.max(e.conversion_rate       ?? 0, s.conversion_rate       ?? 0)
+          }
         }
       } catch (err) {
         console.error(`campaign-values-reports batch ${i} error:`, err)
@@ -201,7 +219,8 @@ export async function POST(req: NextRequest) {
   const statsMapKeys = Object.keys(statsMap)
   const firstKey = statsMapKeys[0] ?? null
   console.log('[campaigns] statsMap keys:', statsMapKeys)
-  console.log('[campaigns] statsMap: total keys =', statsMapKeys.length)
+  console.log(`[campaigns] totalResultEntries: ${totalResultEntries} | uniqueCampaignIds: ${statsMapKeys.length}` +
+    (totalResultEntries > statsMapKeys.length ? ` *** ${totalResultEntries - statsMapKeys.length} extra rows merged ***` : ''))
   console.log('[campaigns] statsMap first entry —', firstKey, ':', JSON.stringify(statsMap[firstKey!] ?? null))
   console.log('[campaigns] statsMap contains easter26_ends:', EASTER_ID in statsMap)
   console.log('[campaigns] conversion_metric_id being used:', config.metrics.placedOrder)

@@ -146,6 +146,13 @@ export async function POST(req: NextRequest) {
     batches.map(async (batch, i) => {
       if (i > 0) await new Promise(r => setTimeout(r, i * STAGGER_MS))
 
+      const EASTER_ID = '01KM1MA27HAA3Y96AZ6V6ZD4JF'
+      console.log(
+        `[campaigns] batch ${i}: sending ${batch.length} IDs` +
+        (batch.includes(EASTER_ID) ? ` *** contains easter26_ends (${EASTER_ID}) ***` : ''),
+      )
+      if (i === 0) console.log(`[campaigns] timeframe: ${startDate} → ${endDate}`)
+
       const body = JSON.stringify({
         data: {
           type: 'campaign-values-report',
@@ -172,6 +179,7 @@ export async function POST(req: NextRequest) {
         const json = await res.json()
         const results: Array<{ groupings: { campaign_id: string }; statistics: Record<string, number> }> =
           json.data?.attributes?.results ?? []
+        console.log(`[campaigns] batch ${i}: received ${results.length} result entries`)
         console.log('[campaigns] raw results[0]:', JSON.stringify(results[0], null, 2))
         for (const r of results) {
           const campaignId = r.groupings?.campaign_id
@@ -183,6 +191,14 @@ export async function POST(req: NextRequest) {
       }
     })
   )
+
+  // ── statsMap diagnostics ─────────────────────────────────────
+  const statsMapKeys = Object.keys(statsMap)
+  const firstKey = statsMapKeys[0] ?? null
+  console.log('[campaigns] statsMap: total keys =', statsMapKeys.length)
+  console.log('[campaigns] statsMap first entry —', firstKey, ':', JSON.stringify(statsMap[firstKey!] ?? null))
+  console.log('[campaigns] statsMap contains easter26_ends (01KM1MA27HAA3Y96AZ6V6ZD4JF):', '01KM1MA27HAA3Y96AZ6V6ZD4JF' in statsMap)
+  console.log('[campaigns] conversion_metric_id being used:', config.metrics.placedOrder)
 
   // ── 3. Assemble campaign rows ────────────────────────────────
   const campaigns: CampaignRow[] = allCampaigns.map(c => {
@@ -253,6 +269,8 @@ export async function POST(req: NextRequest) {
       bounceRate: pct(m.bounces, m.recipients),
       revenue:    m.revenue,
     }))
+
+  console.log('[campaigns] April monthly:', JSON.stringify(monthly.find(m => m.month === '2026-04')))
 
   return NextResponse.json({ campaigns, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
-import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react'
+import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from 'lucide-react'
 import { setDesignStatus, addDesignComment, uploadDesign } from '@/lib/actions/planning'
 import { createClient } from '@/lib/supabase/client'
 import { timeAgo, formatDatetime } from '@/lib/utils'
@@ -108,6 +108,12 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
   const isDeclined = design.status === 'declined'
   const canAct = role === 'stakeholder' && design.is_current
 
+  const isPdf = /\.pdf(\?|$)/i.test(design.file_url ?? '')
+  const pdfFileName = design.file_url
+    ?.split('/').pop()?.split('?')[0]
+    ?.replace(/^\d+-/, '')
+    ?? 'document.pdf'
+
   function handleApprove() {
     if (!canAct) return
     startTransition(async () => {
@@ -150,10 +156,21 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
         {/* Thumbnail */}
         <div
           className="w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => design.file_url && setLightboxOpen(true)}
+          onClick={() => {
+            if (!design.file_url) return
+            if (isPdf) window.open(design.file_url, '_blank')
+            else setLightboxOpen(true)
+          }}
         >
           {design.file_url ? (
-            <img src={design.file_url} alt="Design preview" className="w-full h-full object-cover" />
+            isPdf ? (
+              <div className="flex flex-col items-center gap-1 p-2 text-center">
+                <FileText className="w-7 h-7 text-red-400 flex-shrink-0" />
+                <span className="text-xs text-gray-500 leading-tight line-clamp-2 break-all">{pdfFileName}</span>
+              </div>
+            ) : (
+              <img src={design.file_url} alt="Design preview" className="w-full h-full object-cover" />
+            )
           ) : (
             <ImageIcon className="w-8 h-8 text-gray-300" />
           )}
@@ -274,7 +291,7 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
         </div>
       )}
 
-      {lightboxOpen && design.file_url && (
+      {lightboxOpen && design.file_url && !isPdf && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>
           <img src={design.file_url} alt="Design full size" className="max-w-full max-h-full object-contain rounded-lg" onClick={e => e.stopPropagation()} />
           <button className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-colors" onClick={() => setLightboxOpen(false)}>
@@ -304,7 +321,7 @@ export default function DesignReview({ brandId, month, type, designs, role }: De
     try {
       const supabase = createClient()
       const path = `${brandId}/${month}/${type}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { data, error } = await supabase.storage.from('planning-designs').upload(path, file, { upsert: false })
+      const { data, error } = await supabase.storage.from('planning-designs').upload(path, file, { upsert: false, contentType: file.type })
       if (error) throw new Error(error.message)
       const { data: { publicUrl } } = supabase.storage.from('planning-designs').getPublicUrl(data.path)
       startTransition(async () => {
@@ -331,7 +348,7 @@ export default function DesignReview({ brandId, month, type, designs, role }: De
 
       {showUploadButton && (
         <div>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          <input ref={fileInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading || isPending}

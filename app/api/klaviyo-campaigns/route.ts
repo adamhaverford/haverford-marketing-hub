@@ -238,6 +238,17 @@ export async function POST(req: NextRequest) {
     }
   })
 
+  // ── campaign bucketing diagnostics ──────────────────────────
+  const easterCampaign = allCampaigns.find(c => c.id === EASTER_ID)
+  if (easterCampaign) {
+    const easterRow = campaigns.find(c => c.id === EASTER_ID)
+    console.log('[campaigns] easter26_ends raw fields — scheduled_at:', easterCampaign.attributes.scheduled_at, '| send_time:', easterCampaign.attributes.send_time)
+    console.log('[campaigns] easter26_ends sentAt (field used for bucketing):', easterRow?.sentAt, '| recipients:', easterRow?.recipients, '| revenue:', easterRow?.revenue)
+  }
+  console.log('[campaigns] April bucket campaigns:', campaigns
+    .filter(c => c.sentAt?.startsWith('2026-04'))
+    .map(c => c.name + ' | ' + c.sentAt + ' | recipients: ' + c.recipients))
+
   // ── 4. Aggregate into monthly rows ───────────────────────────
   const monthMap: Record<string, {
     recipients: number; opens: number; clicks: number

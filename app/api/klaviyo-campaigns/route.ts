@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   // ── 1. Fetch all campaigns for the year (paginated) ──────────
   const startDate = `${year}-01-01T00:00:00`
   const endDate   = `${year + 1}-01-01T00:00:00`
-  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${startDate}),less-than(scheduled_at,${endDate}))`
+  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(send_time,${startDate}),less-than(send_time,${endDate}))`
 
   const allCampaigns: RawCampaign[] = []
   let nextUrl: string | null =
@@ -312,7 +312,7 @@ export async function GET(req: NextRequest) {
   const headers = makeHeaders(apiKey)
   const startDate = `${year}-01-01T00:00:00`
   const endDate   = `${year + 1}-01-01T00:00:00`
-  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${startDate}),less-than(scheduled_at,${endDate}))`
+  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(send_time,${startDate}),less-than(send_time,${endDate}))`
 
   // 1. First page of campaigns list
   const listRes = await fetchWithRetry(

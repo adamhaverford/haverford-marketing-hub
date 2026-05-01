@@ -125,6 +125,12 @@ export async function POST(req: NextRequest) {
     nextUrl = json.links?.next ?? null
   }
 
+  const EASTER_ID = '01KM1MA27HAA3Y96AZ6V6ZD4JF'
+  const easterInList = allCampaigns.find(c => c.id === EASTER_ID)
+  console.log('[campaigns] allCampaigns fetched:', allCampaigns.length)
+  console.log('[campaigns] easter26_ends in allCampaigns:', !!easterInList,
+    easterInList ? `| scheduled_at: ${easterInList.attributes.scheduled_at} | send_time: ${easterInList.attributes.send_time}` : '(not found)')
+
   if (allCampaigns.length === 0) {
     return NextResponse.json({ campaigns: [], monthly: [] })
   }
@@ -146,7 +152,6 @@ export async function POST(req: NextRequest) {
     batches.map(async (batch, i) => {
       if (i > 0) await new Promise(r => setTimeout(r, i * STAGGER_MS))
 
-      const EASTER_ID = '01KM1MA27HAA3Y96AZ6V6ZD4JF'
       console.log(
         `[campaigns] batch ${i}: sending ${batch.length} IDs` +
         (batch.includes(EASTER_ID) ? ` *** contains easter26_ends (${EASTER_ID}) ***` : ''),
@@ -195,9 +200,10 @@ export async function POST(req: NextRequest) {
   // ── statsMap diagnostics ─────────────────────────────────────
   const statsMapKeys = Object.keys(statsMap)
   const firstKey = statsMapKeys[0] ?? null
+  console.log('[campaigns] statsMap keys:', statsMapKeys)
   console.log('[campaigns] statsMap: total keys =', statsMapKeys.length)
   console.log('[campaigns] statsMap first entry —', firstKey, ':', JSON.stringify(statsMap[firstKey!] ?? null))
-  console.log('[campaigns] statsMap contains easter26_ends (01KM1MA27HAA3Y96AZ6V6ZD4JF):', '01KM1MA27HAA3Y96AZ6V6ZD4JF' in statsMap)
+  console.log('[campaigns] statsMap contains easter26_ends:', EASTER_ID in statsMap)
   console.log('[campaigns] conversion_metric_id being used:', config.metrics.placedOrder)
 
   // ── 3. Assemble campaign rows ────────────────────────────────

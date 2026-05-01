@@ -82,8 +82,16 @@ function pct(n: number, d: number): number | null {
   return (n / d) * 100
 }
 
-function monthKey(dateStr: string): string {
-  return dateStr.substring(0, 7)
+function toSydneyMonth(utcDateStr: string): string {
+  const date = new Date(utcDateStr)
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date)
+  const year  = parts.find(p => p.type === 'year')?.value
+  const month = parts.find(p => p.type === 'month')?.value
+  return `${year}-${month}`
 }
 
 export async function POST(req: NextRequest) {
@@ -276,7 +284,7 @@ export async function POST(req: NextRequest) {
 
   for (const c of campaigns) {
     if (!c.sentAt) continue
-    const mk    = monthKey(c.sentAt)
+    const mk    = toSydneyMonth(c.sentAt)
     const stats = statsMap[c.id] ?? {}
     if (!monthMap[mk]) {
       monthMap[mk] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, delivered: 0, revenue: 0 }

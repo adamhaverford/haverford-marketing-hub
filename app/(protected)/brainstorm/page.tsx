@@ -26,9 +26,9 @@ export default async function BrainstormPage() {
   // Fetch profiles for all idea creators in one query
   const creatorIds = Array.from(new Set((ideasRaw ?? []).map((i: { created_by: string | null }) => i.created_by).filter((id): id is string => !!id)))
   const { data: profilesData } = creatorIds.length > 0
-    ? await supabase.from('profiles').select('id, full_name, email').in('id', creatorIds)
+    ? await supabase.from('profiles').select('user_id, full_name, email').in('user_id', creatorIds)
     : { data: [] }
-  const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.id, p]))
+  const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.user_id, p]))
 
   const brandMap = Object.fromEntries((brands ?? []).map(b => [b.id, b]))
 

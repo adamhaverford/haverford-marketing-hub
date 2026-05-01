@@ -262,6 +262,8 @@ export async function POST(req: NextRequest) {
       revenue:    m.revenue,
     }))
 
+  console.log('[campaigns] April monthly:', JSON.stringify(monthly.find(m => m.month === '2026-04')))
+
   return NextResponse.json({ campaigns, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }
 

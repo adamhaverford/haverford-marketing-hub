@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Assemble campaign rows ────────────────────────────────
   const campaigns: CampaignRow[] = allCampaigns.map(c => {
-    const sentAt  = c.attributes.scheduled_at ?? c.attributes.send_time ?? ''
+    const sentAt  = c.attributes.send_time ?? c.attributes.scheduled_at ?? ''
     const stats   = statsMap[c.id] ?? {}
 
     const delivered = stats.delivered               ?? null

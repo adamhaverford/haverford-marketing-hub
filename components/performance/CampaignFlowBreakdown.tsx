@@ -347,9 +347,36 @@ function FlowsSection({
       )}
 
       {subTab === 'Year to Date' && (
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4 text-sm text-gray-500">
-          Monthly flow data is not available from Klaviyo&apos;s API. Use the <span className="font-medium">Review</span> tab to see per-flow performance.
-        </div>
+        <TableWrap>
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/70">
+              {(['Month', 'Recipients', 'Open Rate', 'Click Rate', 'Unsub Rate', 'Bounce Rate', 'Spam Rate', 'Orders', 'Revenue'] as const).map((h, i) => (
+                <th key={h} className={`${TH} ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.monthly.map(m => (
+              <tr
+                key={m.month}
+                className={`border-b border-gray-50 last:border-0 ${m.month === selectedMonth ? 'bg-orange-50/40' : 'hover:bg-gray-50/50'}`}
+              >
+                <td className={`${TD} font-semibold text-gray-700`}>{monthLabel(m.month)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(m.recipients)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.openRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.clickRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.unsubRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.bounceRate)}</td>
+                <td className={`${TD} text-right`}>{fmtRate(m.spamRate)}</td>
+                <td className={`${TD} text-right`}>{fmtCount(m.placedOrderCount)}</td>
+                <td className={`${TD} text-right`}>{fmtCurrency(m.revenue)}</td>
+              </tr>
+            ))}
+            {data.monthly.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400 italic">No monthly flow data available.</td></tr>
+            )}
+          </tbody>
+        </TableWrap>
       )}
 
       {subTab === 'Review' && (

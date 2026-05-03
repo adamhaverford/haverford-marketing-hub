@@ -97,7 +97,7 @@ interface FlowAccum {
 }
 
 export async function POST(req: NextRequest) {
-  const { account, year } = await req.json()
+  const { account, year, month } = await req.json()
 
   const apiKey = ACCOUNT_KEY_MAP[account]
   if (!apiKey) {
@@ -135,8 +135,18 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2. Fetch flow-values-reports in staggered batches ────────
-  const startDate = `${year}-01-01T00:00:00`
-  const endDate   = `${year + 1}-01-01T00:00:00`
+  let startDate: string
+  let endDate: string
+  if (month) {
+    const [y, m] = (month as string).split('-').map(Number)
+    const nextYear  = m === 12 ? y + 1 : y
+    const nextMonth = m === 12 ? 1 : m + 1
+    startDate = `${month}-01T00:00:00`
+    endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00`
+  } else {
+    startDate = `${year}-01-01T00:00:00`
+    endDate   = `${year + 1}-01-01T00:00:00`
+  }
 
   const flowIds = allFlows.map(f => f.id)
 

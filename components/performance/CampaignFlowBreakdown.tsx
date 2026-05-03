@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { fmtRate, fmtCurrency, fmtCount, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
@@ -225,11 +225,8 @@ function CampaignsSection({ data }: { data: { campaigns: CampaignRow[]; monthly:
 const FLOW_SUB_TABS = ['Summary', 'Year to Date', 'Review'] as const
 type FlowSubTab = typeof FLOW_SUB_TABS[number]
 
-function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthlyRow[] } }) {
-  const [subTab, setSubTab] = useState<FlowSubTab>('Summary')
-
-  // Aggregate across all flows (monthly[] is always [] for flows)
-  const flowsWithRecipients = data.flows.filter(f => f.recipients !== null && f.recipients > 0)
+function aggregateFlows(flows: FlowRow[]) {
+  const flowsWithRecipients = flows.filter(f => f.recipients !== null && f.recipients > 0)
   const totalRecipients = flowsWithRecipients.reduce((s, f) => s + (f.recipients ?? 0), 0)
 
   function weightedRate(getRateFn: (f: FlowRow) => number | null): number | null {
@@ -241,33 +238,111 @@ function FlowsSection({ data }: { data: { flows: FlowRow[]; monthly: FlowMonthly
     return (sum / totalRecipients) * 100
   }
 
-  // CTOR = total clicks / total opens
   const totalOpens  = flowsWithRecipients.reduce((s, f) => s + ((f.openRate  ?? 0) / 100) * (f.recipients ?? 0), 0)
   const totalClicks = flowsWithRecipients.reduce((s, f) => s + ((f.clickRate ?? 0) / 100) * (f.recipients ?? 0), 0)
-  const aggregatedCtor = totalOpens > 0 ? (totalClicks / totalOpens) * 100 : null
 
-  const aggregated = {
+  return {
     recipients: totalRecipients > 0 ? totalRecipients : null,
     openRate:   weightedRate(f => f.openRate),
     clickRate:  weightedRate(f => f.clickRate),
-    ctor:       aggregatedCtor,
+    ctor:       totalOpens > 0 ? (totalClicks / totalOpens) * 100 : null,
     unsubRate:  weightedRate(f => f.unsubRate),
     bounceRate: weightedRate(f => f.bounceRate),
-    revenue:    data.flows.reduce((s, f) => s + (f.revenue ?? 0), 0) || null,
+    revenue:    flows.reduce((s, f) => s + (f.revenue ?? 0), 0) || null,
   }
+}
+
+function FlowsSection({
+  data,
+  klaviyoAccount,
+  year,
+}: {
+  data: { flows: FlowRow[]; monthly: FlowMonthlyRow[] }
+  klaviyoAccount: string
+  year: number
+}) {
+  const [subTab, setSubTab] = useState<FlowSubTab>('Summary')
+
+  const availableMonths = useMemo(() => {
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth() + 1
+    const maxMonth = year < nowYear ? 12 : year === nowYear ? nowMonth : 0
+    const months: string[] = []
+    for (let m = 1; m <= maxMonth; m++) {
+      months.push(`${year}-${String(m).padStart(2, '0')}`)
+    }
+    return months
+  }, [year])
+
+  // Default to the most recently completed month
+  const defaultMonth = useMemo(() => {
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth() + 1
+    if (year < nowYear) return `${year}-12`
+    if (year === nowYear) {
+      const prev = nowMonth - 1
+      return prev >= 1
+        ? `${year}-${String(prev).padStart(2, '0')}`
+        : `${year}-01`
+    }
+    return availableMonths[0] ?? ''
+  }, [year, availableMonths])
+
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth)
+  const [summaryFlows, setSummaryFlows] = useState<FlowRow[]>(data.flows)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+
+  useEffect(() => {
+    if (!selectedMonth) return
+    setSummaryLoading(true)
+    fetch('/api/klaviyo-flows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account: klaviyoAccount, year, month: selectedMonth }),
+    })
+      .then(r => r.json())
+      .then(json => { if (!json.error) setSummaryFlows(json.flows ?? []) })
+      .catch(() => {})
+      .finally(() => setSummaryLoading(false))
+  }, [selectedMonth, klaviyoAccount, year])
+
+  const aggregated = aggregateFlows(summaryFlows)
 
   return (
     <div>
       <SubTabBar tabs={FLOW_SUB_TABS} active={subTab} onChange={setSubTab} />
 
       {subTab === 'Summary' && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <MetricCard label="Open Rate"   value={fmtRate(aggregated.openRate)} />
-          <MetricCard label="Click Rate"  value={fmtRate(aggregated.clickRate)} />
-          <MetricCard label="CTOR"        value={fmtRate(aggregated.ctor)} />
-          <MetricCard label="Revenue"     value={fmtCurrency(aggregated.revenue)} />
-          <MetricCard label="Recipients"  value={fmtCount(aggregated.recipients)} />
-          <MetricCard label="Unsub Rate"  value={fmtRate(aggregated.unsubRate)} />
+        <div className="space-y-5">
+          {/* Month filter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</span>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
+            >
+              {availableMonths.map(m => (
+                <option key={m} value={m}>{monthLabel(m)}</option>
+              ))}
+            </select>
+          </div>
+          {summaryLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-7 h-7 border-4 border-gray-200 border-t-orange-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <MetricCard label="Open Rate"   value={fmtRate(aggregated.openRate)} />
+              <MetricCard label="Click Rate"  value={fmtRate(aggregated.clickRate)} />
+              <MetricCard label="CTOR"        value={fmtRate(aggregated.ctor)} />
+              <MetricCard label="Revenue"     value={fmtCurrency(aggregated.revenue)} />
+              <MetricCard label="Recipients"  value={fmtCount(aggregated.recipients)} />
+              <MetricCard label="Unsub Rate"  value={fmtRate(aggregated.unsubRate)} />
+            </div>
+          )}
         </div>
       )}
 
@@ -418,7 +493,7 @@ export default function CampaignFlowBreakdown({ klaviyoAccount, year }: Props) {
                 <CampaignsSection key="campaigns" data={campaignsData} />
               )}
               {activeTab === 'Flows' && flowsData && (
-                <FlowsSection key="flows" data={flowsData} />
+                <FlowsSection key="flows" data={flowsData} klaviyoAccount={klaviyoAccount} year={year} />
               )}
             </>
           )}

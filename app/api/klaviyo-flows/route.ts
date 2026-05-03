@@ -264,10 +264,91 @@ export async function POST(req: NextRequest) {
     }
   })
 
-  // ── 4. Monthly data ──────────────────────────────────────────
-  // flow-values-report results have no date grouping (grouped by flow_message_id),
-  // so monthly breakdown is not available from this endpoint.
-  const monthly: MonthlyRow[] = []
+  // ── 4. Monthly data via flow-series-report ───────────────────
+  interface MonthAccum {
+    delivered:       number
+    bounced:         number
+    opens_unique:    number
+    clicks_unique:   number
+    unsubscribes:    number
+    spam_complaints: number
+    total_revenue:   number
+    total_orders:    number
+  }
+
+  const monthMap: Record<string, MonthAccum> = {}
+
+  try {
+    const seriesBody = JSON.stringify({
+      data: {
+        type: 'flow-series-report',
+        attributes: {
+          timeframe: { start: startDate, end: endDate },
+          filter: flowFilter(flowIds),
+          statistics: FLOW_STATISTICS,
+          conversion_metric_id: config.metrics.placedOrder,
+          interval: 'monthly',
+        },
+      },
+    })
+    const seriesRes = await fetchWithRetry(
+      'https://a.klaviyo.com/api/flow-series-reports/',
+      { method: 'POST', headers, body: seriesBody },
+    )
+    if (seriesRes.ok) {
+      const seriesJson = await seriesRes.json()
+      const seriesResults: Array<{ groupings: { date: string }; statistics: Record<string, number> }> =
+        seriesJson.data?.attributes?.results ?? []
+
+      for (const r of seriesResults) {
+        const monthKey = (r.groupings?.date ?? '').substring(0, 7)
+        if (!monthKey) continue
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = {
+            delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
+            unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
+          }
+        }
+        const acc = monthMap[monthKey]
+        const del = r.statistics.delivered ?? 0
+        acc.delivered       += del
+        acc.bounced         += r.statistics.bounced              ?? 0
+        acc.opens_unique    += r.statistics.opens_unique         ?? 0
+        acc.clicks_unique   += r.statistics.clicks_unique        ?? 0
+        acc.unsubscribes    += r.statistics.unsubscribes         ?? 0
+        acc.spam_complaints += r.statistics.spam_complaints      ?? 0
+        acc.total_revenue   += (r.statistics.revenue_per_recipient ?? 0) * del
+        acc.total_orders    += (r.statistics.conversion_rate       ?? 0) * del
+      }
+    } else {
+      const errText = await seriesRes.text()
+      console.error(`flow-series-reports failed (${seriesRes.status}):`, errText)
+    }
+  } catch (err) {
+    console.error('flow-series-reports error:', err)
+  }
+
+  const monthly: MonthlyRow[] = Object.entries(monthMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([monthKey, acc]) => {
+      const { delivered, bounced, opens_unique, clicks_unique,
+              unsubscribes, spam_complaints, total_revenue, total_orders } = acc
+      const recipients      = delivered + bounced
+      const placedOrderCount = Math.round(total_orders)
+      const revenue         = total_revenue
+      return {
+        month:            monthKey,
+        recipients,
+        openRate:         pct(opens_unique,    delivered),
+        clickRate:        pct(clicks_unique,   delivered),
+        unsubRate:        pct(unsubscribes,    delivered),
+        bounceRate:       pct(bounced,         delivered + bounced),
+        spamRate:         pct(spam_complaints, delivered),
+        revenue,
+        placedOrderCount,
+        aov:              placedOrderCount > 0 ? revenue / placedOrderCount : null,
+      }
+    })
 
   return NextResponse.json({ flows, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }

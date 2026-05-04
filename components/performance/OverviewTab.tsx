@@ -48,9 +48,8 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount }: Overv
   const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const activeData = data.filter(r => r.sent !== null)
-  const featured = activeData.find(r => r.month === currentKey)
-    ?? activeData[activeData.length - 1]
-    ?? null
+  const currentMonthData = data.find(r => r.month === currentKey)
+  const featured = currentMonthData ?? activeData[activeData.length - 1] ?? null
   const prev = featured ? prevOf(activeData, featured) : null
 
   const isCurrentMonth = featured?.month === currentKey

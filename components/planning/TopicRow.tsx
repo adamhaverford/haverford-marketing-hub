@@ -212,7 +212,7 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
                 </button>
               </div>
               {topic.description && (
-                <p className={`text-sm mt-1 ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p className={`text-sm mt-1 break-all ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>
                   {topic.description}
                 </p>
               )}

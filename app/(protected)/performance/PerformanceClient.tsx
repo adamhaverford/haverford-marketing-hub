@@ -89,7 +89,7 @@ export default function PerformanceClient({ brands }: Props) {
 
       const map: Record<string, BlendedMonth> = {}
 
-      function absorb(entries: Array<{ month: string; recipients: number; openRate: number | null; clickRate: number | null; revenue: number }>) {
+      const absorb = (entries: Array<{ month: string; recipients: number | null; openRate: number | null; clickRate: number | null; revenue: number | null }>) => {
         for (const m of entries) {
           if (!map[m.month]) map[m.month] = { month: m.month, delivered: 0, opensUnique: 0, clicksUnique: 0, revenue: 0 }
           const del = m.recipients ?? 0

@@ -54,8 +54,8 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount }: Overv
   const prev = featured ? prevOf(activeData, featured) : null
 
   const isCurrentMonth = featured?.month === currentKey
-  const hasCampaignsSent = (featured?.sent ?? 0) > 500
-  const showRates = !isCurrentMonth || hasCampaignsSent
+  const dayOfMonth = new Date().getDate()
+  const showRates = !isCurrentMonth || dayOfMonth > 7
 
   return (
     <div className="space-y-8">

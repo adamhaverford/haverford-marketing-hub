@@ -53,10 +53,6 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount, blended
   const featured = currentMonthData ?? activeData[activeData.length - 1] ?? null
   const prev = featured ? prevOf(activeData, featured) : null
 
-  const isCurrentMonth = featured?.month === currentKey
-  const dayOfMonth = new Date().getDate()
-  const showRates = !isCurrentMonth || dayOfMonth > 7
-
   // Blended open/click rates from campaign + flow monthly data
   const blended = featured ? blendedMonthly.find(b => b.month === featured.month) ?? null : null
   const blendedOpenRate  = blended && blended.delivered > 0 ? (blended.opensUnique  / blended.delivered) * 100 : null
@@ -88,21 +84,21 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount, blended
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               label="Open Rate"
-              value={showRates ? fmtRate(displayOpenRate) : '—'}
-              trend={showRates ? trend(displayOpenRate, prev?.openRate ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, displayOpenRate, prev?.openRate ?? null) : undefined}
+              value={fmtRate(displayOpenRate)}
+              trend={trend(displayOpenRate, prev?.openRate ?? null)}
+              trendLabel={trendLabel(prev, displayOpenRate, prev?.openRate ?? null)}
             />
             <MetricCard
               label="Click Rate"
-              value={showRates ? fmtRate(displayClickRate) : '—'}
-              trend={showRates ? trend(displayClickRate, prev?.clickRate ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, displayClickRate, prev?.clickRate ?? null) : undefined}
+              value={fmtRate(displayClickRate)}
+              trend={trend(displayClickRate, prev?.clickRate ?? null)}
+              trendLabel={trendLabel(prev, displayClickRate, prev?.clickRate ?? null)}
             />
             <MetricCard
               label="CTOR"
-              value={showRates ? fmtRate(displayCtor) : '—'}
-              trend={showRates ? trend(displayCtor, prev?.ctor ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, displayCtor, prev?.ctor ?? null) : undefined}
+              value={fmtRate(displayCtor)}
+              trend={trend(displayCtor, prev?.ctor ?? null)}
+              trendLabel={trendLabel(prev, displayCtor, prev?.ctor ?? null)}
             />
             <MetricCard
               label="Revenue"

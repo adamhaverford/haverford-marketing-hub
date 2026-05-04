@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useTransition } from 'react'
 import { RefreshCw, AlertCircle, FileText, Save } from 'lucide-react'
-import { fetchPerformanceData, MonthData } from '@/lib/performance'
+import { fetchPerformanceData, MonthData, BlendedMonth } from '@/lib/performance'
 import { useToast } from '@/components/Toast'
 import { createClient } from '@/lib/supabase/client'
 import OverviewTab from '@/components/performance/OverviewTab'
@@ -36,6 +36,7 @@ export default function PerformanceClient({ brands }: Props) {
   const [data, setData] = useState<MonthData[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blendedMonthly, setBlendedMonthly] = useState<BlendedMonth[]>([])
 
   const [notes, setNotes] = useState('')
   const [editingNotes, setEditingNotes] = useState(false)
@@ -75,10 +76,44 @@ export default function PerformanceClient({ brands }: Props) {
     }
   }, [selectedBrand, selectedYear])
 
+  const loadBlended = useCallback(async () => {
+    if (!selectedBrand?.klaviyo_account) { setBlendedMonthly([]); return }
+    try {
+      const body    = JSON.stringify({ account: selectedBrand.klaviyo_account, year: selectedYear })
+      const headers = { 'Content-Type': 'application/json' }
+      const [cRes, fRes] = await Promise.all([
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body }),
+      ])
+      const [cJson, fJson] = await Promise.all([cRes.json(), fRes.json()])
+
+      const map: Record<string, BlendedMonth> = {}
+
+      function absorb(entries: Array<{ month: string; recipients: number; openRate: number | null; clickRate: number | null; revenue: number }>) {
+        for (const m of entries) {
+          if (!map[m.month]) map[m.month] = { month: m.month, delivered: 0, opensUnique: 0, clicksUnique: 0, revenue: 0 }
+          const del = m.recipients ?? 0
+          map[m.month].delivered   += del
+          map[m.month].opensUnique  += ((m.openRate  ?? 0) / 100) * del
+          map[m.month].clicksUnique += ((m.clickRate ?? 0) / 100) * del
+          map[m.month].revenue      += m.revenue ?? 0
+        }
+      }
+
+      if (!cJson.error) absorb(cJson.monthly ?? [])
+      if (!fJson.error) absorb(fJson.monthly ?? [])
+
+      setBlendedMonthly(Object.values(map).sort((a, b) => a.month.localeCompare(b.month)))
+    } catch {
+      setBlendedMonthly([])
+    }
+  }, [selectedBrand, selectedYear])
+
   useEffect(() => {
     loadData()
     fetchNotes()
-  }, [loadData, fetchNotes])
+    loadBlended()
+  }, [loadData, fetchNotes, loadBlended])
 
   async function handleSaveNotes() {
     if (!selectedBrandId) return
@@ -208,7 +243,7 @@ export default function PerformanceClient({ brands }: Props) {
 
           {/* Tab content */}
           {activeTab === 'Overview' && (
-            <OverviewTab data={data} brand={selectedBrand?.name ?? ''} year={selectedYear} klaviyoAccount={selectedBrand?.klaviyo_account} />
+            <OverviewTab data={data} brand={selectedBrand?.name ?? ''} year={selectedYear} klaviyoAccount={selectedBrand?.klaviyo_account} blendedMonthly={blendedMonthly} />
           )}
           {activeTab === 'Spam' && (
             <SpamTab data={data} year={selectedYear} />

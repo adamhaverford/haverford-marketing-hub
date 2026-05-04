@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Share2 } from 'lucide-react'
-import { MonthData, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
+import { MonthData, BlendedMonth, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
 import OpenRateChart from './OpenRateChart'
@@ -14,6 +14,7 @@ interface OverviewTabProps {
   brand: string
   year: number
   klaviyoAccount?: string | null
+  blendedMonthly?: BlendedMonth[]
 }
 
 function trend(current: number | null, prev: number | null): 'up' | 'down' | 'flat' | null {
@@ -41,7 +42,7 @@ function trendLabel(prevMonth: MonthData | null, current: number | null, prevVal
   return pct !== null ? `vs ${monthLabel(prevMonth.month)}: ${pct}` : undefined
 }
 
-export default function OverviewTab({ data, brand, year, klaviyoAccount }: OverviewTabProps) {
+export default function OverviewTab({ data, brand, year, klaviyoAccount, blendedMonthly = [] }: OverviewTabProps) {
   const [reportMonth, setReportMonth] = useState<MonthData | null>(null)
 
   const now = new Date()
@@ -55,6 +56,17 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount }: Overv
   const isCurrentMonth = featured?.month === currentKey
   const dayOfMonth = new Date().getDate()
   const showRates = !isCurrentMonth || dayOfMonth > 7
+
+  // Blended open/click rates from campaign + flow monthly data
+  const blended = featured ? blendedMonthly.find(b => b.month === featured.month) ?? null : null
+  const blendedOpenRate  = blended && blended.delivered > 0 ? (blended.opensUnique  / blended.delivered) * 100 : null
+  const blendedClickRate = blended && blended.delivered > 0 ? (blended.clicksUnique / blended.delivered) * 100 : null
+  const blendedCtor      = blended && blended.opensUnique > 0 ? (blended.clicksUnique / blended.opensUnique) * 100 : null
+
+  const displayOpenRate  = blended ? blendedOpenRate  : featured?.openRate  ?? null
+  const displayClickRate = blended ? blendedClickRate : featured?.clickRate ?? null
+  const displayCtor      = blended ? blendedCtor      : featured?.ctor      ?? null
+  const displayDelivered = blended ? blended.delivered : featured?.sent ?? null
 
   return (
     <div className="space-y-8">
@@ -76,26 +88,26 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount }: Overv
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               label="Open Rate"
-              value={showRates ? fmtRate(featured.openRate) : '—'}
-              trend={showRates ? trend(featured.openRate, prev?.openRate ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, featured.openRate, prev?.openRate ?? null) : undefined}
+              value={showRates ? fmtRate(displayOpenRate) : '—'}
+              trend={showRates ? trend(displayOpenRate, prev?.openRate ?? null) : null}
+              trendLabel={showRates ? trendLabel(prev, displayOpenRate, prev?.openRate ?? null) : undefined}
             />
             <MetricCard
               label="Click Rate"
-              value={showRates ? fmtRate(featured.clickRate) : '—'}
-              trend={showRates ? trend(featured.clickRate, prev?.clickRate ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, featured.clickRate, prev?.clickRate ?? null) : undefined}
+              value={showRates ? fmtRate(displayClickRate) : '—'}
+              trend={showRates ? trend(displayClickRate, prev?.clickRate ?? null) : null}
+              trendLabel={showRates ? trendLabel(prev, displayClickRate, prev?.clickRate ?? null) : undefined}
             />
             <MetricCard
               label="CTOR"
-              value={showRates ? fmtRate(featured.ctor) : '—'}
-              trend={showRates ? trend(featured.ctor, prev?.ctor ?? null) : null}
-              trendLabel={showRates ? trendLabel(prev, featured.ctor, prev?.ctor ?? null) : undefined}
+              value={showRates ? fmtRate(displayCtor) : '—'}
+              trend={showRates ? trend(displayCtor, prev?.ctor ?? null) : null}
+              trendLabel={showRates ? trendLabel(prev, displayCtor, prev?.ctor ?? null) : undefined}
             />
             <MetricCard
               label="Revenue"
               value={fmtCurrency(featured.revenue)}
-              subValue={`${fmtCount(featured.sent)} sent`}
+              subValue={`${fmtCount(displayDelivered)} delivered`}
               trend={trend(featured.revenue, prev?.revenue ?? null)}
               trendLabel={trendLabel(prev, featured.revenue, prev?.revenue ?? null)}
             />
@@ -120,7 +132,7 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount }: Overv
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
           All Months — {year}
         </h3>
-        <MonthlyTable data={data} currentMonth={currentKey} />
+        <MonthlyTable data={data} currentMonth={currentKey} blendedMonthly={blendedMonthly} />
       </div>
 
       {/* Campaign & Flow Breakdown accordion */}

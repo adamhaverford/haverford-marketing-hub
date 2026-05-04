@@ -1,11 +1,12 @@
-import { MonthData, monthLabel, fmtRate, fmtCount, fmtCurrency } from '@/lib/performance'
+import { MonthData, BlendedMonth, monthLabel, fmtRate, fmtCount, fmtCurrency } from '@/lib/performance'
 
 interface MonthlyTableProps {
   data: MonthData[]
   currentMonth: string
+  blendedMonthly?: BlendedMonth[]
 }
 
-export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) {
+export default function MonthlyTable({ data, currentMonth, blendedMonthly = [] }: MonthlyTableProps) {
   const cols = [
     { key: 'month',        label: 'Month',        align: 'left'  },
     { key: 'sent',         label: 'Sent',          align: 'right' },
@@ -21,8 +22,16 @@ export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) 
   function fmt(row: MonthData, key: typeof cols[number]['key']): string {
     if (key === 'month')      return monthLabel(row.month)
     if (key === 'sent')       return fmtCount(row.sent)
-    if (key === 'openRate')   return fmtRate(row.openRate)
-    if (key === 'clickRate')  return fmtRate(row.clickRate)
+    if (key === 'openRate') {
+      const b = blendedMonthly.find(m => m.month === row.month)
+      const rate = b && b.delivered > 0 ? (b.opensUnique / b.delivered) * 100 : row.openRate
+      return fmtRate(rate)
+    }
+    if (key === 'clickRate') {
+      const b = blendedMonthly.find(m => m.month === row.month)
+      const rate = b && b.delivered > 0 ? (b.clicksUnique / b.delivered) * 100 : row.clickRate
+      return fmtRate(rate)
+    }
     if (key === 'ctor')       return fmtRate(row.ctor)
     if (key === 'unsubRate')  return fmtRate(row.unsubRate)
     if (key === 'bounceRate') return fmtRate(row.bounceRate)

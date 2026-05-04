@@ -19,6 +19,14 @@ export interface MonthData {
   spamRate: number | null
 }
 
+export interface BlendedMonth {
+  month: string
+  delivered: number
+  opensUnique: number
+  clicksUnique: number
+  revenue: number
+}
+
 // Parses the Klaviyo metric-aggregate API response into a month→value map
 function parseKlaviyoResponse(json: unknown, measurement: string): Record<string, number> {
   const result: Record<string, number> = {}

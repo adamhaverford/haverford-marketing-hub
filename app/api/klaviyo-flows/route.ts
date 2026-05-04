@@ -31,11 +31,16 @@ function makeHeaders(apiKey: string) {
   }
 }
 
-async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   let res = await fetch(url, options)
-  if (res.status === 429) {
-    await new Promise(r => setTimeout(r, 1000))
+  let attempts = 1
+  while (res.status === 429 && attempts < maxRetries) {
+    const retryAfter = res.headers.get('Retry-After')
+    const waitMs = retryAfter ? parseFloat(retryAfter) * 1000 + 500 : 8000
+    console.log(`[fetchWithRetry] 429 throttled — waiting ${waitMs}ms before retry ${attempts}/${maxRetries - 1}`)
+    await new Promise(r => setTimeout(r, waitMs))
     res = await fetch(url, options)
+    attempts++
   }
   return res
 }

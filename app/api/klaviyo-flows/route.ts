@@ -296,14 +296,17 @@ export async function POST(req: NextRequest) {
         },
       },
     })
+    await new Promise(r => setTimeout(r, 2000))
     const seriesRes = await fetchWithRetry(
       'https://a.klaviyo.com/api/flow-series-reports/',
       { method: 'POST', headers, body: seriesBody },
     )
+    console.log('[flows series] status:', seriesRes.status)
     if (seriesRes.ok) {
       const seriesJson = await seriesRes.json()
       const seriesResults: Array<{ groupings: { date: string }; statistics: Record<string, number> }> =
         seriesJson.data?.attributes?.results ?? []
+      console.log('[flows series] result count:', seriesResults.length, '| first:', JSON.stringify(seriesResults[0] ?? null))
 
       for (const r of seriesResults) {
         const monthKey = (r.groupings?.date ?? '').substring(0, 7)

@@ -309,24 +309,34 @@ export async function POST(req: NextRequest) {
       console.log('[flows series] result count:', seriesResults.length, '| first:', JSON.stringify(seriesResults[0] ?? null))
 
       for (const r of seriesResults) {
-        const monthKey = (r.groupings?.date ?? '').substring(0, 7)
-        if (!monthKey) continue
-        if (!monthMap[monthKey]) {
-          monthMap[monthKey] = {
-            delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
-            unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
+        const stats = r.statistics
+        // Each stat value is an array — one entry per month in the timeframe
+        const deliveredArr = stats.delivered as unknown as number[]
+        if (!Array.isArray(deliveredArr)) continue
+
+        deliveredArr.forEach((_, idx) => {
+          // Derive the month key from startDate + idx months
+          const d = new Date(startDate)
+          d.setMonth(d.getMonth() + idx)
+          const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+          if (!monthMap[monthKey]) {
+            monthMap[monthKey] = {
+              delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
+              unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
+            }
           }
-        }
-        const acc = monthMap[monthKey]
-        const del = r.statistics.delivered ?? 0
-        acc.delivered       += del
-        acc.bounced         += r.statistics.bounced              ?? 0
-        acc.opens_unique    += r.statistics.opens_unique         ?? 0
-        acc.clicks_unique   += r.statistics.clicks_unique        ?? 0
-        acc.unsubscribes    += r.statistics.unsubscribes         ?? 0
-        acc.spam_complaints += r.statistics.spam_complaints      ?? 0
-        acc.total_revenue   += (r.statistics.revenue_per_recipient ?? 0) * del
-        acc.total_orders    += (r.statistics.conversion_rate       ?? 0) * del
+          const acc = monthMap[monthKey]
+          const del = (stats.delivered as unknown as number[])[idx] ?? 0
+          acc.delivered       += del
+          acc.bounced         += ((stats.bounced              as unknown as number[])[idx] ?? 0)
+          acc.opens_unique    += ((stats.opens_unique         as unknown as number[])[idx] ?? 0)
+          acc.clicks_unique   += ((stats.clicks_unique        as unknown as number[])[idx] ?? 0)
+          acc.unsubscribes    += ((stats.unsubscribes         as unknown as number[])[idx] ?? 0)
+          acc.spam_complaints += ((stats.spam_complaints      as unknown as number[])[idx] ?? 0)
+          acc.total_revenue   += ((stats.revenue_per_recipient as unknown as number[])[idx] ?? 0) * del
+          acc.total_orders    += ((stats.conversion_rate       as unknown as number[])[idx] ?? 0) * del
+        })
       }
     } else {
       const errText = await seriesRes.text()

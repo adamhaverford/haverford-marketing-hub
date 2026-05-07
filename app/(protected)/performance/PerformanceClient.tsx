@@ -7,7 +7,6 @@ import { useToast } from '@/components/Toast'
 import { createClient } from '@/lib/supabase/client'
 import OverviewTab from '@/components/performance/OverviewTab'
 import SpamTab from '@/components/performance/SpamTab'
-import FlowJournal from '@/components/performance/FlowJournal'
 
 interface Brand {
   id: string
@@ -20,7 +19,7 @@ interface Props {
   brands: Brand[]
 }
 
-const TABS = ['Overview', 'Spam', 'Journal'] as const
+const TABS = ['Overview', 'Spam'] as const
 type Tab = typeof TABS[number]
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -248,21 +247,6 @@ export default function PerformanceClient({ brands }: Props) {
           )}
           {activeTab === 'Spam' && (
             <SpamTab data={data} year={selectedYear} />
-          )}
-          {activeTab === 'Journal' && selectedBrand?.klaviyo_account && (
-            <div className="px-6 py-6">
-              <div className="mb-5">
-                <h2 className="text-lg font-bold text-gray-900">Flow Journal</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Track changes made to flows and measure their impact over time.</p>
-              </div>
-              <FlowJournal
-                brandId={selectedBrandId}
-                klaviyoAccount={selectedBrand.klaviyo_account}
-              />
-            </div>
-          )}
-          {activeTab === 'Journal' && !selectedBrand?.klaviyo_account && (
-            <div className="px-6 py-6 text-sm text-gray-400">No Klaviyo account configured for this brand.</div>
           )}
 
           {/* Notes section (shared across tabs) */}

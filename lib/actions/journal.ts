@@ -52,6 +52,7 @@ export async function addJournalEntry(entry: {
     changed_by: user?.id ?? null,
   })
   if (error) throw new Error(error.message)
+  revalidatePath('/journal')
   revalidatePath('/performance')
 }
 
@@ -65,6 +66,7 @@ export async function updateJournalOutcome(
     .update({ outcome })
     .eq('id', entryId)
   if (error) throw new Error(error.message)
+  revalidatePath('/journal')
   revalidatePath('/performance')
 }
 
@@ -75,5 +77,6 @@ export async function deleteJournalEntry(entryId: string): Promise<void> {
     .delete()
     .eq('id', entryId)
   if (error) throw new Error(error.message)
+  revalidatePath('/journal')
   revalidatePath('/performance')
 }

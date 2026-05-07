@@ -36,7 +36,6 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
   const [flows, setFlows] = useState<Flow[]>([])
   const [loadingFlows, setLoadingFlows] = useState(true)
   const [loadingEntries, setLoadingEntries] = useState(true)
-  const [filterFlowId, setFilterFlowId] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -75,14 +74,14 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
   const loadEntries = useCallback(async () => {
     setLoadingEntries(true)
     try {
-      const data = await getJournalEntries(brandId, filterFlowId || undefined)
+      const data = await getJournalEntries(brandId)
       setEntries(data)
     } catch (e) {
       console.error('Failed to load journal entries', e)
     } finally {
       setLoadingEntries(false)
     }
-  }, [brandId, filterFlowId])
+  }, [brandId])
 
   useEffect(() => { loadEntries() }, [loadEntries])
 
@@ -142,20 +141,7 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
   return (
     <div className="space-y-4">
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <select
-            value={filterFlowId}
-            onChange={e => setFilterFlowId(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[200px]"
-          >
-            <option value="">All Flows</option>
-            {flows.map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-          {loadingFlows && <span className="text-xs text-gray-400">Loading flows...</span>}
-        </div>
+      <div className="flex items-center justify-end gap-3 flex-wrap">
         <button
           onClick={() => { setShowForm(!showForm); if (showForm) resetForm() }}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors hover:opacity-90"

@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Lightbulb,
   BarChart2,
+  BookOpen,
   Settings,
   LogOut,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ const navItems = [
   { label: 'Planning',    href: '/planning',     icon: CalendarDays,    marketingOnly: false },
   { label: 'Brainstorm',  href: '/brainstorm',   icon: Lightbulb,       marketingOnly: false },
   { label: 'Performance', href: '/performance',  icon: BarChart2,       marketingOnly: false },
+  { label: 'Flow Journal', href: '/journal',    icon: BookOpen,        marketingOnly: false },
   { label: 'Settings',    href: '/settings',     icon: Settings,        marketingOnly: true },
 ]
 

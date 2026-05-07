@@ -304,7 +304,7 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
               {/* Footer */}
               <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                 <span className="text-xs text-gray-400">
-                  Logged by Team
+                  Logged by {entry.logged_by_name ?? 'Unknown'}
                 </span>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-gray-400 mr-1">Outcome:</span>

@@ -17,6 +17,7 @@ export type JournalEntry = {
   notes: string | null
   outcome: 'improved' | 'worse' | 'neutral' | null
   created_at: string
+  logged_by_name: string | null
 }
 
 export async function getJournalEntries(brandId: string, flowId?: string): Promise<JournalEntry[]> {
@@ -46,9 +47,21 @@ export async function addJournalEntry(entry: {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const admin = createAdminClient()
+
+  let loggedByName: string | null = null
+  if (user?.id) {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', user.id)
+      .single()
+    loggedByName = profile?.full_name ?? null
+  }
+
   const { error } = await admin.from('flow_journal_entries').insert({
     ...entry,
     changed_by: user?.id ?? null,
+    logged_by_name: loggedByName,
   })
   if (error) throw new Error(error.message)
   revalidatePath('/journal')

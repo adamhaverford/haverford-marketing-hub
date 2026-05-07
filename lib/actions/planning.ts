@@ -257,6 +257,12 @@ export async function reorderTopics(topicIds: string[]) {
   revalidatePath('/planning', 'layout')
 }
 
+export async function deleteTopic(topicId: string) {
+  const supabase = await createClient()
+  await supabase.from('planning_topics').delete().eq('id', topicId)
+  revalidatePath('/planning')
+}
+
 export async function setTopicStatus(
   topicId: string,
   status: 'proposed' | 'approved' | 'declined',

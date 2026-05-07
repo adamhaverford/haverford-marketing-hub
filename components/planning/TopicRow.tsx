@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
-import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, AlertTriangle, GripVertical } from 'lucide-react'
+import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, Trash2, AlertTriangle, GripVertical } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { setTopicStatus, addTopicComment, updateTopic } from '@/lib/actions/planning'
+import { setTopicStatus, addTopicComment, updateTopic, deleteTopic } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 
 interface Comment {
@@ -71,6 +71,13 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
     setEditDescription(topic.description ?? '')
     setIsEditing(true)
     setTimeout(() => editTitleRef.current?.focus(), 50)
+  }
+
+  function handleDelete() {
+    if (!confirm('Delete this topic? This cannot be undone.')) return
+    startTransition(async () => {
+      await deleteTopic(topic.id)
+    })
   }
 
   function cancelEditing() {
@@ -210,6 +217,15 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
+                {role === 'marketing' && (
+                  <button
+                    onClick={handleDelete}
+                    title="Delete topic"
+                    className="mt-0.5 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors opacity-0 group-hover/title:opacity-100"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                )}
               </div>
               {topic.description && (
                 <p className={`text-sm mt-1 break-all ${isDeclined ? 'text-gray-400' : 'text-gray-500'}`}>

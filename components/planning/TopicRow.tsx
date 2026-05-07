@@ -221,7 +221,7 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
                   <button
                     onClick={handleDelete}
                     title="Delete topic"
-                    className="mt-0.5 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors opacity-0 group-hover/title:opacity-100"
+                    className="mt-0.5 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors opacity-30 group-hover/title:opacity-100"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>

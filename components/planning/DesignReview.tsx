@@ -311,7 +311,7 @@ export default function DesignReview({ brandId, month, type, designs, role }: De
 
   const currentDesign = designs.find(d => d.is_current) ?? null
   const historyDesigns = designs.filter(d => !d.is_current && d.status === 'declined')
-  const showUploadButton = role === 'marketing' && (!currentDesign || currentDesign.status === 'declined')
+  const showUploadButton = (!currentDesign || currentDesign.status === 'declined')
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

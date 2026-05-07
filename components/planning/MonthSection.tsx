@@ -120,8 +120,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
         <div>
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Topics</h4>
-            {role === 'marketing' && (
-              <button
+            <button
                 onClick={() => setShowAddTopic(!showAddTopic)}
                 className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg text-white transition-colors hover:opacity-90"
                 style={{ backgroundColor: accentColor }}
@@ -129,7 +128,6 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
                 {showAddTopic ? <ChevronUp className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                 {showAddTopic ? 'Cancel' : 'Add Topic'}
               </button>
-            )}
           </div>
 
           {/* Add topic form */}
@@ -179,9 +177,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
           {orderedTopics.length === 0 && !showAddTopic ? (
             <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
               No topics yet.
-              {role === 'marketing' && (
-                <span className="ml-1 text-gray-500">Click + Add Topic to get started.</span>
-              )}
+              <span className="ml-1 text-gray-500">Click + Add Topic to get started.</span>
             </div>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

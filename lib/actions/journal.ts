@@ -17,14 +17,13 @@ export type JournalEntry = {
   notes: string | null
   outcome: 'improved' | 'worse' | 'neutral' | null
   created_at: string
-  profiles: { full_name: string | null } | null
 }
 
 export async function getJournalEntries(brandId: string, flowId?: string): Promise<JournalEntry[]> {
   const supabase = createAdminClient()
   let query = supabase
     .from('flow_journal_entries')
-    .select('*, profiles(full_name)')
+    .select('*')
     .eq('brand_id', brandId)
     .order('changed_at', { ascending: false })
   if (flowId) query = query.eq('flow_id', flowId)

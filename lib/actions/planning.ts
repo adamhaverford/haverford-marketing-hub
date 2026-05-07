@@ -258,8 +258,9 @@ export async function reorderTopics(topicIds: string[]) {
 }
 
 export async function deleteTopic(topicId: string) {
-  const supabase = await createClient()
-  await supabase.from('planning_topics').delete().eq('id', topicId)
+  const supabase = createAdminClient()
+  const { error } = await supabase.from('planning_topics').delete().eq('id', topicId)
+  if (error) throw new Error(`Failed to delete topic: ${error.message}`)
   revalidatePath('/planning')
 }
 

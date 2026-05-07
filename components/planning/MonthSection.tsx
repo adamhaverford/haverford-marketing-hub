@@ -67,10 +67,13 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [orderedTopics, setOrderedTopics] = useState(topics)
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
 
   // Sync when server data changes after revalidation
-  useEffect(() => { setOrderedTopics(topics) }, [topics])
+  useEffect(() => {
+    setOrderedTopics(topics.filter(t => !deletedIds.has(t.id)))
+  }, [topics])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -92,6 +95,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
   }
 
   function handleDeleteTopic(topicId: string) {
+    setDeletedIds(prev => new Set(prev).add(topicId))
     setOrderedTopics(prev => prev.filter(t => t.id !== topicId))
   }
 

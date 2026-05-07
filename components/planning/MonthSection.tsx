@@ -91,6 +91,10 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
     })
   }
 
+  function handleDeleteTopic(topicId: string) {
+    setOrderedTopics(prev => prev.filter(t => t.id !== topicId))
+  }
+
   function handleAddTopic() {
     if (!title.trim()) return
     const t = title
@@ -184,7 +188,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
               <SortableContext items={orderedTopics.map(t => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {orderedTopics.map((topic, i) => (
-                    <TopicRow key={topic.id} topic={topic} role={role} number={i + 1} />
+                    <TopicRow key={topic.id} topic={topic} role={role} number={i + 1} onDelete={handleDeleteTopic} />
                   ))}
                 </div>
               </SortableContext>

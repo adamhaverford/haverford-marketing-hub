@@ -31,9 +31,10 @@ interface TopicRowProps {
   topic: Topic
   role: 'marketing' | 'stakeholder'
   number: number
+  onDelete: (id: string) => void
 }
 
-export default function TopicRow({ topic, role, number }: TopicRowProps) {
+export default function TopicRow({ topic, role, number, onDelete }: TopicRowProps) {
   const [showComments, setShowComments] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [declineReason, setDeclineReason] = useState('')
@@ -75,6 +76,7 @@ export default function TopicRow({ topic, role, number }: TopicRowProps) {
 
   function handleDelete() {
     if (!confirm('Delete this topic? This cannot be undone.')) return
+    onDelete(topic.id) // optimistic remove
     startTransition(async () => {
       await deleteTopic(topic.id)
     })

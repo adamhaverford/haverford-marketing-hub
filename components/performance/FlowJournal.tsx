@@ -34,7 +34,7 @@ interface Props {
 export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [flows, setFlows] = useState<Flow[]>([])
-  const [loadingFlows, setLoadingFlows] = useState(true)
+  const [, setLoadingFlows] = useState(true)
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)

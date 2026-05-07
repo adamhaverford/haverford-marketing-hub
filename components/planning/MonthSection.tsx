@@ -73,7 +73,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
   // Sync when server data changes after revalidation
   useEffect(() => {
     setOrderedTopics(topics.filter(t => !deletedIds.has(t.id)))
-  }, [topics])
+  }, [topics, deletedIds])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),

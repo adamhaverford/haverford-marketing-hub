@@ -259,6 +259,11 @@ export async function reorderTopics(topicIds: string[]) {
 
 export async function deleteTopic(topicId: string) {
   const supabase = createAdminClient()
+  // Clear foreign key reference in brainstorm_ideas first
+  await supabase
+    .from('brainstorm_ideas')
+    .update({ proceeded_to_topic_id: null })
+    .eq('proceeded_to_topic_id', topicId)
   const { error } = await supabase.from('planning_topics').delete().eq('id', topicId)
   if (error) throw new Error(`Failed to delete topic: ${error.message}`)
   revalidatePath('/planning')

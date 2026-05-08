@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AlertCircle } from 'lucide-react'
 import FlowJournal from '@/components/performance/FlowJournal'
+import JournalFindings from '@/components/performance/JournalFindings'
+import { getJournalEntries, JournalEntry } from '@/lib/actions/journal'
 
 interface Brand {
   id: string
@@ -17,9 +19,29 @@ interface Props {
 
 export default function JournalClient({ brands }: Props) {
   const [selectedBrandId, setSelectedBrandId] = useState(brands[0]?.id ?? '')
+  const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [loadingEntries, setLoadingEntries] = useState(false)
 
   const selectedBrand = brands.find(b => b.id === selectedBrandId)
   const noKlaviyo = selectedBrand && !selectedBrand.klaviyo_account
+
+  const loadEntries = useCallback(async () => {
+    if (!selectedBrandId) return
+    setLoadingEntries(true)
+    try {
+      const data = await getJournalEntries(selectedBrandId)
+      setEntries(data)
+    } catch (e) {
+      console.error('Failed to load journal entries', e)
+    } finally {
+      setLoadingEntries(false)
+    }
+  }, [selectedBrandId])
+
+  useEffect(() => {
+    setEntries([])
+    loadEntries()
+  }, [loadEntries])
 
   return (
     <div className="p-8 max-w-4xl">
@@ -56,12 +78,24 @@ export default function JournalClient({ brands }: Props) {
         </div>
       )}
 
-      {/* Journal */}
       {selectedBrand?.klaviyo_account && (
-        <FlowJournal
-          brandId={selectedBrandId}
-          klaviyoAccount={selectedBrand.klaviyo_account}
-        />
+        <div className="space-y-4">
+          {/* Findings summary (only when entries exist) */}
+          {!loadingEntries && (
+            <JournalFindings
+              brandName={selectedBrand.name}
+              entries={entries}
+            />
+          )}
+
+          {/* Journal entry list + add form */}
+          <FlowJournal
+            brandId={selectedBrandId}
+            klaviyoAccount={selectedBrand.klaviyo_account}
+            entries={entries}
+            onEntriesChange={loadEntries}
+          />
+        </div>
       )}
     </div>
   )

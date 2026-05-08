@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Plus, Trash2, ChevronUp, BookOpen } from 'lucide-react'
-import { getJournalEntries, addJournalEntry, updateJournalOutcome, deleteJournalEntry, JournalEntry } from '@/lib/actions/journal'
+import { addJournalEntry, updateJournalOutcome, deleteJournalEntry, JournalEntry } from '@/lib/actions/journal'
 
 const CATEGORIES = ['Subject Line', 'Copy', 'Delay', 'Filter', 'Structure', 'Split Test', 'Other'] as const
 
@@ -29,15 +29,15 @@ interface Flow {
 interface Props {
   brandId: string
   klaviyoAccount: string
+  entries: JournalEntry[]
+  onEntriesChange: () => void
 }
 
-export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
-  const [entries, setEntries] = useState<JournalEntry[]>([])
+export default function FlowJournal({ brandId, klaviyoAccount, entries, onEntriesChange }: Props) {
   const [flows, setFlows] = useState<Flow[]>([])
-  const [, setLoadingFlows] = useState(true)
-  const [loadingEntries, setLoadingEntries] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [, startTransition] = useTransition()
 
   const today = new Date().toISOString().split('T')[0]
   const [formFlowId, setFormFlowId] = useState('')
@@ -50,7 +50,6 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
 
   useEffect(() => {
     async function loadFlows() {
-      setLoadingFlows(true)
       try {
         const res = await fetch('/api/klaviyo-flows', {
           method: 'POST',
@@ -64,26 +63,10 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
         setFlows(flowList.sort((a, b) => a.name.localeCompare(b.name)))
       } catch (e) {
         console.error('Failed to load flows', e)
-      } finally {
-        setLoadingFlows(false)
       }
     }
     loadFlows()
   }, [klaviyoAccount])
-
-  const loadEntries = useCallback(async () => {
-    setLoadingEntries(true)
-    try {
-      const data = await getJournalEntries(brandId)
-      setEntries(data)
-    } catch (e) {
-      console.error('Failed to load journal entries', e)
-    } finally {
-      setLoadingEntries(false)
-    }
-  }, [brandId])
-
-  useEffect(() => { loadEntries() }, [loadEntries])
 
   function resetForm() {
     setFormFlowId('')
@@ -111,7 +94,7 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
         after_value: formAfter.trim() || null,
         notes: formNotes.trim() || null,
       })
-      await loadEntries()
+      onEntriesChange()
       setShowForm(false)
       resetForm()
     } catch (e) {
@@ -122,14 +105,16 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
   }
 
   async function handleOutcome(entryId: string, outcome: 'improved' | 'worse' | 'neutral' | null) {
-    await updateJournalOutcome(entryId, outcome)
-    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, outcome } : e))
+    startTransition(async () => {
+      await updateJournalOutcome(entryId, outcome)
+      onEntriesChange()
+    })
   }
 
   async function handleDelete(entryId: string) {
     if (!confirm('Delete this journal entry?')) return
     await deleteJournalEntry(entryId)
-    setEntries(prev => prev.filter(e => e.id !== entryId))
+    onEntriesChange()
   }
 
   function formatDate(dateStr: string) {
@@ -250,9 +235,7 @@ export default function FlowJournal({ brandId, klaviyoAccount }: Props) {
       )}
 
       {/* Entries list */}
-      {loadingEntries ? (
-        <div className="text-sm text-gray-400 text-center py-8">Loading journal...</div>
-      ) : entries.length === 0 ? (
+      {entries.length === 0 ? (
         <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
           <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-40" />
           <p className="text-sm font-medium">No changes logged yet</p>

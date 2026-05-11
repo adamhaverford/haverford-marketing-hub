@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-import { Share2 } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Share2, Pencil, Check, X } from 'lucide-react'
 import { MonthData, BlendedMonth, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
 import OpenRateChart from './OpenRateChart'
 import SendReportModal from './SendReportModal'
 import CampaignFlowBreakdown from './CampaignFlowBreakdown'
+import { getBrandCost, upsertBrandCost } from '@/lib/actions/roi'
 
 interface OverviewTabProps {
   data: MonthData[]
   brand: string
+  brandId: string
   year: number
   klaviyoAccount?: string | null
   blendedMonthly?: BlendedMonth[]
@@ -42,8 +44,12 @@ function trendLabel(prevMonth: MonthData | null, current: number | null, prevVal
   return pct !== null ? `vs ${monthLabel(prevMonth.month)}: ${pct}` : undefined
 }
 
-export default function OverviewTab({ data, brand, year, klaviyoAccount, blendedMonthly = [] }: OverviewTabProps) {
+export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount, blendedMonthly = [] }: OverviewTabProps) {
   const [reportMonth, setReportMonth] = useState<MonthData | null>(null)
+  const [monthlyCost, setMonthlyCost] = useState<number | null>(null)
+  const [editingCost, setEditingCost] = useState(false)
+  const [costInput, setCostInput] = useState('')
+  const [savingCost, setSavingCost] = useState(false)
 
   const now = new Date()
   const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -64,6 +70,50 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount, blended
   const displayCtor      = blended ? blendedCtor      : featured?.ctor      ?? null
   const displayDelivered = blended ? blended.delivered : featured?.sent ?? null
 
+  // ROI — last month
+  const lastMonthKey = useMemo(() => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const lastMonthData = data.find(d => d.month === lastMonthKey) ?? null
+  const prevLastMonthData = lastMonthData ? prevOf(activeData, lastMonthData) : null
+  const lastMonthRevenue = lastMonthData?.revenue ?? null
+
+  useEffect(() => {
+    if (!brandId) return
+    getBrandCost(brandId, lastMonthKey).then(cost => {
+      setMonthlyCost(cost)
+      setCostInput(cost?.toString() ?? '')
+    })
+  }, [brandId, lastMonthKey])
+
+  const roiMultiplier = (monthlyCost && lastMonthRevenue && monthlyCost > 0)
+    ? lastMonthRevenue / monthlyCost
+    : null
+
+  const prevRoiMultiplier = (monthlyCost && prevLastMonthData?.revenue && monthlyCost > 0)
+    ? prevLastMonthData.revenue / monthlyCost
+    : null
+
+  const roiTrend = roiMultiplier !== null && prevRoiMultiplier !== null
+    ? roiMultiplier > prevRoiMultiplier ? 'up' : roiMultiplier < prevRoiMultiplier ? 'down' : 'flat'
+    : null
+
+  async function handleSaveCost() {
+    const val = parseFloat(costInput)
+    if (isNaN(val) || val <= 0) return
+    setSavingCost(true)
+    try {
+      await upsertBrandCost(brandId, lastMonthKey, val)
+      setMonthlyCost(val)
+      setEditingCost(false)
+    } finally {
+      setSavingCost(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Summary cards for featured month */}
@@ -81,7 +131,7 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount, blended
               Share report
             </button>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <MetricCard
               label="Open Rate"
               value={fmtRate(displayOpenRate)}
@@ -107,6 +157,74 @@ export default function OverviewTab({ data, brand, year, klaviyoAccount, blended
               trend={trend(featured.revenue, prev?.revenue ?? null)}
               trendLabel={trendLabel(prev, featured.revenue, prev?.revenue ?? null)}
             />
+
+            {/* ROI Card */}
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  ROI — {monthLabel(lastMonthKey)}
+                </p>
+                {!editingCost && (
+                  <button
+                    onClick={() => setEditingCost(true)}
+                    className="text-gray-300 hover:text-gray-500 transition-colors"
+                    title="Edit monthly cost"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {roiMultiplier !== null ? (
+                <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                  {roiMultiplier.toFixed(1)}x
+                </p>
+              ) : (
+                <p className="text-3xl font-bold text-gray-300">—</p>
+              )}
+
+              {editingCost ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400">A$</span>
+                  <input
+                    type="number"
+                    value={costInput}
+                    onChange={e => setCostInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSaveCost()}
+                    className="w-20 text-xs border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-orange-300"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveCost}
+                    disabled={savingCost}
+                    className="text-green-500 hover:text-green-600 transition-colors"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { setEditingCost(false); setCostInput(monthlyCost?.toString() ?? '') }}
+                    className="text-gray-300 hover:text-gray-500 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  {monthlyCost
+                    ? `A$${monthlyCost.toLocaleString()} cost · A$${lastMonthRevenue?.toLocaleString() ?? '—'} rev`
+                    : 'No cost set — click ✏️ to add'}
+                </p>
+              )}
+
+              {roiTrend && prevRoiMultiplier !== null && (
+                <p className={`text-xs font-medium flex items-center gap-1 ${
+                  roiTrend === 'up' ? 'text-green-600' : roiTrend === 'down' ? 'text-red-500' : 'text-gray-400'
+                }`}>
+                  {roiTrend === 'up' ? '↗' : roiTrend === 'down' ? '↘' : '→'}
+                  vs {monthLabel(prevLastMonthData?.month ?? '')}: {prevRoiMultiplier.toFixed(1)}x
+                </p>
+              )}
+            </div>
           </div>
         </div>
       ) : (

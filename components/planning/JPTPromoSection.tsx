@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LayoutList, BookOpen } from 'lucide-react'
 import MonthSection, { type Topic, type Design } from './MonthSection'
 import JPTFrameworkSection from './JPTFrameworkSection'
 
@@ -35,17 +34,15 @@ export default function JPTPromoSection({ brandId, month, topics, designs, role 
         <h3 className="text-base font-bold text-purple-700">Promo/Newsletter</h3>
         <button
           onClick={toggleMode}
-          className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-            frameworkMode
-              ? 'bg-purple-100 text-purple-700 border-purple-200'
-              : 'bg-white text-gray-500 border-gray-200 hover:border-purple-200 hover:text-purple-600'
-          }`}
+          className="flex items-center gap-2.5 group"
+          title={frameworkMode ? 'Switch to Standard Mode' : 'Switch to Framework Mode'}
         >
-          {frameworkMode
-            ? <BookOpen className="w-3.5 h-3.5" />
-            : <LayoutList className="w-3.5 h-3.5" />
-          }
-          {frameworkMode ? 'Framework Mode' : 'Standard Mode'}
+          <span className={`text-xs font-medium transition-colors ${frameworkMode ? 'text-purple-600' : 'text-gray-400'}`}>
+            Framework Mode
+          </span>
+          <div className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${frameworkMode ? 'bg-purple-500' : 'bg-gray-200'}`}>
+            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${frameworkMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </div>
         </button>
       </div>
 

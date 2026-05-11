@@ -74,7 +74,7 @@ interface Props {
 export default function JPTFrameworkSection({ brandId, month, topics, designs, role }: Props) {
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [openSections, setOpenSections] = useState<Set<SectionId>>(
-    new Set(['subject_line', 'hero', 'crosssell', 'tip', 'spotlight'])
+    new Set<SectionId>(['subject_line', 'hero', 'crosssell', 'tip', 'spotlight'])
   )
   const [addingTo, setAddingTo] = useState<SectionId | null>(null)
   const [newTitle, setNewTitle] = useState('')

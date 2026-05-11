@@ -63,10 +63,6 @@ const FRAMEWORK_SECTIONS = [
 
 type SectionId = typeof FRAMEWORK_SECTIONS[number]['id']
 
-interface SectionState {
-  topics: Topic[]
-}
-
 interface Props {
   brandId: string
   month: string

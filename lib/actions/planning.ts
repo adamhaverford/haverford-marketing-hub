@@ -230,6 +230,7 @@ export async function addTopic(data: {
   type: 'evergreen' | 'promotional'
   title: string
   description: string | null
+  section?: string | null
 }) {
   const { supabase, profile } = await getAuthedProfile()
   if (profile.role !== 'marketing') throw new Error('Unauthorized')
@@ -240,6 +241,7 @@ export async function addTopic(data: {
     type: data.type,
     title: data.title,
     description: data.description || null,
+    section: data.section ?? null,
     created_by: profile.id,
     status: 'proposed',
   })

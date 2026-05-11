@@ -21,17 +21,18 @@ import TopicRow from './TopicRow'
 import DesignReview from './DesignReview'
 import { addTopic, reorderTopics } from '@/lib/actions/planning'
 
-interface Comment {
+export interface Comment {
   id: string
   comment: string
   created_at: string
   profiles: { full_name: string | null } | null
 }
 
-interface Topic {
+export interface Topic {
   id: string
   title: string
   description: string | null
+  section: string | null
   status: 'proposed' | 'approved' | 'declined'
   created_at: string
   action_comment: string | null
@@ -41,7 +42,7 @@ interface Topic {
   comments: Comment[]
 }
 
-interface Design {
+export interface Design {
   id: string
   file_url: string | null
   uploaded_at: string
@@ -60,9 +61,10 @@ interface MonthSectionProps {
   topics: Topic[]
   designs: Design[]
   role: 'marketing' | 'stakeholder'
+  bare?: boolean
 }
 
-export default function MonthSection({ brandId, month, type, topics, designs, role }: MonthSectionProps) {
+export default function MonthSection({ brandId, month, type, topics, designs, role, bare }: MonthSectionProps) {
   const [showAddTopic, setShowAddTopic] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -116,13 +118,7 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
   const headerColor = type === 'evergreen' ? 'text-teal-700' : 'text-purple-700'
   const accentColor = type === 'evergreen' ? '#0d9488' : '#9333ea'
 
-  return (
-    <div className={`rounded-2xl border-2 ${sectionColor} overflow-hidden`}>
-      {/* Section header */}
-      <div className={`px-6 py-4 border-b ${type === 'evergreen' ? 'border-teal-200' : 'border-purple-200'} bg-white/60`}>
-        <h3 className={`text-base font-bold ${headerColor}`}>{typeLabel}</h3>
-      </div>
-
+  const inner = (
       <div className="p-6 space-y-6">
         {/* Part A: Topic Pool */}
         <div>
@@ -214,6 +210,17 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
           />
         </div>
       </div>
+  )
+
+  if (bare) return inner
+
+  return (
+    <div className={`rounded-2xl border-2 ${sectionColor} overflow-hidden`}>
+      {/* Section header */}
+      <div className={`px-6 py-4 border-b ${type === 'evergreen' ? 'border-teal-200' : 'border-purple-200'} bg-white/60`}>
+        <h3 className={`text-base font-bold ${headerColor}`}>{typeLabel}</h3>
+      </div>
+      {inner}
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MonthSection from '@/components/planning/MonthSection'
-import NewsletterBriefPanel from '@/components/planning/NewsletterBriefPanel'
+import JPTPromoSection from '@/components/planning/JPTPromoSection'
 import { formatMonthLabel } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
 
@@ -44,6 +44,7 @@ export default async function MonthDetailPage({ params }: Props) {
       title,
       description,
       type,
+      section,
       status,
       created_at,
       action_comment,
@@ -117,6 +118,7 @@ export default async function MonthDetailPage({ params }: Props) {
         id: t.id,
         title: t.title,
         description: t.description,
+        section: (t.section as string | null) ?? null,
         status: t.status as 'proposed' | 'approved' | 'declined',
         created_at: t.created_at,
         action_comment: t.action_comment,
@@ -194,24 +196,24 @@ export default async function MonthDetailPage({ params }: Props) {
           designs={buildDesigns('evergreen')}
           role={role}
         />
-        <MonthSection
-          brandId={brand.id}
-          month={params.month}
-          type="promotional"
-          topics={buildTopics('promotional')}
-          designs={buildDesigns('promotional')}
-          role={role}
-        />
-
-        {/* Newsletter Brief — Just Pro Tools only */}
-        {brand.name === 'Just Pro Tools' && (
-          <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden">
-            <NewsletterBriefPanel
-              brandId={brand.id}
-              month={params.month}
-              role={role}
-            />
-          </div>
+        {/* Promotional section */}
+        {brand.name === 'Just Pro Tools' ? (
+          <JPTPromoSection
+            brandId={brand.id}
+            month={params.month}
+            topics={buildTopics('promotional')}
+            designs={buildDesigns('promotional')}
+            role={role}
+          />
+        ) : (
+          <MonthSection
+            brandId={brand.id}
+            month={params.month}
+            type="promotional"
+            topics={buildTopics('promotional')}
+            designs={buildDesigns('promotional')}
+            role={role}
+          />
         )}
       </div>
     </div>

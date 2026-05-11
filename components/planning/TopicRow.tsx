@@ -18,6 +18,7 @@ interface Topic {
   id: string
   title: string
   description: string | null
+  section: string | null
   status: 'proposed' | 'approved' | 'declined'
   created_at: string
   action_comment: string | null

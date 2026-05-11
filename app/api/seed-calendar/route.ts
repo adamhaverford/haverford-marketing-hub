@@ -8,14 +8,14 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient()
-  const { error, count } = await supabase
+  const { data, error } = await supabase
     .from('calendar_events')
     .insert(CALENDAR_EVENTS)
-    .select('id', { count: 'exact', head: true })
+    .select('id')
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ seeded: count ?? CALENDAR_EVENTS.length })
+  return NextResponse.json({ seeded: data?.length ?? CALENDAR_EVENTS.length })
 }

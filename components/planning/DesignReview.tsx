@@ -311,7 +311,7 @@ export default function DesignReview({ brandId, month, type, designs, role }: De
 
   const currentDesign = designs.find(d => d.is_current) ?? null
   const historyDesigns = designs.filter(d => !d.is_current && d.status === 'declined')
-  const showUploadButton = (!currentDesign || currentDesign.status === 'declined')
+  const showUploadButton = true
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -356,8 +356,11 @@ export default function DesignReview({ brandId, month, type, designs, role }: De
             style={{ backgroundColor: '#E8611A' }}
           >
             <Upload className="w-4 h-4" />
-            {uploading ? 'Uploading...' : currentDesign ? 'Upload revised design' : 'Upload Design'}
+            {uploading ? 'Uploading...' : currentDesign?.status === 'approved' ? 'Upload new version' : currentDesign ? 'Replace design' : 'Upload Design'}
           </button>
+          {currentDesign?.status === 'approved' && (
+            <p className="text-xs text-amber-600 mt-1.5">⚠️ This will replace the approved design and reset approval status.</p>
+          )}
           {uploadError && <p className="text-xs text-red-500 mt-1">{uploadError}</p>}
         </div>
       )}

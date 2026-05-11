@@ -6,6 +6,7 @@ import { signOut } from '@/lib/auth/actions'
 import {
   LayoutDashboard,
   CalendarDays,
+  Calendar,
   Lightbulb,
   BarChart2,
   BookOpen,
@@ -21,6 +22,7 @@ interface SidebarProps {
 const navItems = [
   { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard, marketingOnly: false },
   { label: 'Planning',    href: '/planning',     icon: CalendarDays,    marketingOnly: false },
+  { label: 'Calendar',    href: '/calendar',     icon: Calendar,        marketingOnly: false },
   { label: 'Brainstorm',  href: '/brainstorm',   icon: Lightbulb,       marketingOnly: false },
   { label: 'Performance', href: '/performance',  icon: BarChart2,       marketingOnly: false },
   { label: 'Flow Journal', href: '/journal',    icon: BookOpen,        marketingOnly: false },

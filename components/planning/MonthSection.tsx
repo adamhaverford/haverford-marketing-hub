@@ -219,6 +219,9 @@ export default function MonthSection({ brandId, month, type, topics, designs, ro
       {/* Section header */}
       <div className={`px-6 py-4 border-b ${type === 'evergreen' ? 'border-teal-200' : 'border-purple-200'} bg-white/60`}>
         <h3 className={`text-base font-bold ${headerColor}`}>{typeLabel}</h3>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {type === 'evergreen' ? 'Typically sends 10th–14th of the month' : 'Typically sends 24th–26th of the month'}
+        </p>
       </div>
       {inner}
     </div>

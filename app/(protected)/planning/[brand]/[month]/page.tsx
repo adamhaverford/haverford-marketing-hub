@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MonthSection from '@/components/planning/MonthSection'
+import NewsletterBriefPanel from '@/components/planning/NewsletterBriefPanel'
 import { formatMonthLabel } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
 
@@ -201,6 +202,17 @@ export default async function MonthDetailPage({ params }: Props) {
           designs={buildDesigns('promotional')}
           role={role}
         />
+
+        {/* Newsletter Brief — Just Pro Tools only */}
+        {brand.name === 'Just Pro Tools' && (
+          <div className="rounded-2xl border border-orange-100 bg-white overflow-hidden">
+            <NewsletterBriefPanel
+              brandId={brand.id}
+              month={params.month}
+              role={role}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

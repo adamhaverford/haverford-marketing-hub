@@ -168,18 +168,19 @@ export default async function AttentionPanel() {
     // is_current=true means no newer design has been uploaded since the decline
     const { data: declinedDesigns } = await supabase
       .from('planning_designs')
-      .select('brand_id, month, actioned_at')
+      .select('brand_id, month, actioned_at, created_at')
       .eq('status', 'declined')
       .eq('is_current', true)
 
-    const declinedDesignsList = (declinedDesigns ?? []) as { brand_id: string; month: string; actioned_at: string | null }[]
+    const declinedDesignsList = (declinedDesigns ?? []) as { brand_id: string; month: string; actioned_at: string | null; created_at: string }[]
 
     // Latest actioned_at per brand+month for dismiss override check
     const latestDesignDeclineAt: Record<string, string> = {}
     for (const d of declinedDesignsList) {
       const key = `${d.brand_id}-${d.month}`
-      if (d.actioned_at && (!latestDesignDeclineAt[key] || d.actioned_at > latestDesignDeclineAt[key])) {
-        latestDesignDeclineAt[key] = d.actioned_at
+      const at = d.actioned_at ?? d.created_at ?? new Date(0).toISOString()
+      if (!latestDesignDeclineAt[key] || at > latestDesignDeclineAt[key]) {
+        latestDesignDeclineAt[key] = at
       }
     }
 

@@ -337,7 +337,7 @@ export async function addTopicComment(topicId: string, comment: string, mentione
         comment_type: 'topic',
         mentioned_profile_id: pid,
       }))
-    ).catch(() => {})
+    )
     const { data: authorProfile } = await supabase.from('profiles').select('full_name').eq('id', profile.id).single()
     const authorName = authorProfile?.full_name ?? 'Someone'
     for (const pid of mentionedProfileIds) {
@@ -350,7 +350,7 @@ export async function addTopicComment(topicId: string, comment: string, mentione
           entity_type: 'topic_comment',
           message: `${authorName} mentioned you in a comment`,
           href: '/planning',
-        }).catch(() => {})
+        })
       }
     }
   }
@@ -432,7 +432,7 @@ export async function addDesignComment(designId: string, comment: string, mentio
         comment_type: 'design',
         mentioned_profile_id: pid,
       }))
-    ).catch(() => {})
+    )
     const { data: authorProfile } = await supabase.from('profiles').select('full_name').eq('id', profile.id).single()
     const authorName = authorProfile?.full_name ?? 'Someone'
     for (const pid of mentionedProfileIds) {
@@ -445,7 +445,7 @@ export async function addDesignComment(designId: string, comment: string, mentio
           entity_type: 'design_comment',
           message: `${authorName} mentioned you in a comment`,
           href: '/planning',
-        }).catch(() => {})
+        })
       }
     }
   }

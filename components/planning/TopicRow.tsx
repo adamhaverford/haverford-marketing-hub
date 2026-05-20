@@ -4,8 +4,9 @@ import { useState, useEffect, useTransition, useRef } from 'react'
 import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, Trash2, AlertTriangle, GripVertical } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { setTopicStatus, addTopicComment, updateTopic, deleteTopic } from '@/lib/actions/planning'
+import { setTopicStatus, addTopicComment, updateTopic, deleteTopic, getProfiles } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
+import MentionTextarea from './MentionTextarea'
 
 interface Comment {
   id: string
@@ -38,6 +39,8 @@ interface TopicRowProps {
 export default function TopicRow({ topic, role, number, onDelete }: TopicRowProps) {
   const [showComments, setShowComments] = useState(false)
   const [commentText, setCommentText] = useState('')
+  const [mentionedIds, setMentionedIds] = useState<string[]>([])
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
   const [declineReason, setDeclineReason] = useState('')
   const [showDeclineInput, setShowDeclineInput] = useState(false)
   const [highlighted, setHighlighted] = useState(false)
@@ -48,6 +51,10 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const editTitleRef = useRef<HTMLInputElement>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    getProfiles().then(setProfiles).catch(() => {})
+  }, [])
 
   const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortable({ id: topic.id })
 
@@ -123,9 +130,11 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
   function handleAddComment() {
     if (!commentText.trim()) return
     const text = commentText
+    const ids = mentionedIds
     setCommentText('')
+    setMentionedIds([])
     startTransition(async () => {
-      await addTopicComment(topic.id, text)
+      await addTopicComment(topic.id, text, ids)
     })
   }
 
@@ -383,21 +392,20 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
             </div>
           )}
           <div className="flex gap-2">
-            <textarea
-              ref={commentInputRef}
+            <MentionTextarea
               value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment() }
-              }}
-              placeholder="Add a comment..."
-              rows={1}
-              className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+              onChange={setCommentText}
+              onMentionsChange={setMentionedIds}
+              profiles={profiles}
+              placeholder="Add a comment... (type @ to mention someone)"
+              rows={2}
+              className="flex-1 focus:ring-blue-300"
+              disabled={isPending}
             />
             <button
               onClick={handleAddComment}
               disabled={!commentText.trim() || isPending}
-              className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors self-end"
             >
               Post
             </button>

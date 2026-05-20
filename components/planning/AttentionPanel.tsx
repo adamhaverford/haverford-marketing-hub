@@ -294,6 +294,37 @@ export default async function AttentionPanel() {
     }, `design-comment-${designId}`)
   }
 
+  // ── Both roles: @mentions in topic/design comments ──────────
+  const { data: mentions } = await supabase
+    .from('comment_mentions')
+    .select('comment_id, comment_type, created_at, planning_topic_comments(id, topic_id, planning_topics(brand_id, month))')
+    .eq('mentioned_profile_id', profile.id)
+    .gt('created_at', cutoff)
+
+  for (const mention of (mentions ?? [])) {
+    const dismissId = `mention-${mention.comment_type}-${mention.comment_id}`
+    if (dismissMap[dismissId]) continue
+    if (mention.comment_type === 'topic') {
+      const comment = Array.isArray(mention.planning_topic_comments)
+        ? mention.planning_topic_comments[0]
+        : mention.planning_topic_comments
+      const topic = comment?.planning_topics
+        ? (Array.isArray(comment.planning_topics) ? comment.planning_topics[0] : comment.planning_topics)
+        : null
+      if (!topic) continue
+      const brand = brandMap[(topic as { brand_id: string; month: string }).brand_id]
+      if (!brand) continue
+      addItem({
+        href: `/planning/${(topic as { brand_id: string; month: string }).brand_id}/${(topic as { brand_id: string; month: string }).month}`,
+        message: 'You were mentioned in a comment',
+        brandName: brand.name,
+        brandColor: brand.color,
+        type: 'comment',
+        dismissId,
+      }, `mention-${mention.comment_id}`)
+    }
+  }
+
   // ── Empty state ───────────────────────────────────────────────
   if (items.length === 0) {
     return (

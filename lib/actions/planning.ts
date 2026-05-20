@@ -310,16 +310,52 @@ export async function updateTopic(topicId: string, title: string, description: s
   revalidatePath('/planning', 'layout')
 }
 
-export async function addTopicComment(topicId: string, comment: string) {
+export async function getProfiles(): Promise<{ id: string; full_name: string | null; email: string }[]> {
+  const { supabase } = await getAuthedProfile()
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .order('full_name')
+  return (data ?? []) as { id: string; full_name: string | null; email: string }[]
+}
+
+export async function addTopicComment(topicId: string, comment: string, mentionedProfileIds: string[] = []) {
   const { supabase, profile } = await getAuthedProfile()
 
-  const { error } = await supabase.from('planning_topic_comments').insert({
-    topic_id: topicId,
-    user_id: profile.id,
-    comment: comment.trim(),
-  })
-  if (error) throw new Error(error.message)
+  const { data: saved, error } = await supabase
+    .from('planning_topic_comments')
+    .insert({ topic_id: topicId, user_id: profile.id, comment: comment.trim() })
+    .select('id')
+    .single()
+  if (error || !saved) throw new Error(error?.message ?? 'Failed to add comment')
+
+  if (mentionedProfileIds.length > 0) {
+    const admin = createAdminClient()
+    await admin.from('comment_mentions').insert(
+      mentionedProfileIds.map(pid => ({
+        comment_id: saved.id,
+        comment_type: 'topic',
+        mentioned_profile_id: pid,
+      }))
+    ).catch(() => {})
+    const { data: authorProfile } = await supabase.from('profiles').select('full_name').eq('id', profile.id).single()
+    const authorName = authorProfile?.full_name ?? 'Someone'
+    for (const pid of mentionedProfileIds) {
+      const { data: mentioned } = await admin.from('profiles').select('user_id').eq('id', pid).single()
+      if (mentioned?.user_id) {
+        await admin.from('notifications').insert({
+          user_id: mentioned.user_id,
+          type: 'mention',
+          entity_id: saved.id,
+          entity_type: 'topic_comment',
+          message: `${authorName} mentioned you in a comment`,
+          href: '/planning',
+        }).catch(() => {})
+      }
+    }
+  }
   revalidatePath('/planning', 'layout')
+  revalidatePath('/dashboard')
 }
 
 // ----------------------------------------------------------------
@@ -378,16 +414,43 @@ export async function setDesignStatus(
   revalidatePath('/planning', 'layout')
 }
 
-export async function addDesignComment(designId: string, comment: string) {
+export async function addDesignComment(designId: string, comment: string, mentionedProfileIds: string[] = []) {
   const { supabase, profile } = await getAuthedProfile()
 
-  const { error } = await supabase.from('planning_design_comments').insert({
-    design_id: designId,
-    user_id: profile.id,
-    comment: comment.trim(),
-  })
-  if (error) throw new Error(error.message)
+  const { data: saved, error } = await supabase
+    .from('planning_design_comments')
+    .insert({ design_id: designId, user_id: profile.id, comment: comment.trim() })
+    .select('id')
+    .single()
+  if (error || !saved) throw new Error(error?.message ?? 'Failed to add comment')
+
+  if (mentionedProfileIds.length > 0) {
+    const admin = createAdminClient()
+    await admin.from('comment_mentions').insert(
+      mentionedProfileIds.map(pid => ({
+        comment_id: saved.id,
+        comment_type: 'design',
+        mentioned_profile_id: pid,
+      }))
+    ).catch(() => {})
+    const { data: authorProfile } = await supabase.from('profiles').select('full_name').eq('id', profile.id).single()
+    const authorName = authorProfile?.full_name ?? 'Someone'
+    for (const pid of mentionedProfileIds) {
+      const { data: mentioned } = await admin.from('profiles').select('user_id').eq('id', pid).single()
+      if (mentioned?.user_id) {
+        await admin.from('notifications').insert({
+          user_id: mentioned.user_id,
+          type: 'mention',
+          entity_id: saved.id,
+          entity_type: 'design_comment',
+          message: `${authorName} mentioned you in a comment`,
+          href: '/planning',
+        }).catch(() => {})
+      }
+    }
+  }
   revalidatePath('/planning', 'layout')
+  revalidatePath('/dashboard')
 }
 
 export async function recordNotificationClick(entityId: string, entityType: 'topic' | 'design') {

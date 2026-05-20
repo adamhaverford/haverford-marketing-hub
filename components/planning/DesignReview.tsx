@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react'
 import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from 'lucide-react'
-import { setDesignStatus, addDesignComment, uploadDesign } from '@/lib/actions/planning'
+import { setDesignStatus, addDesignComment, uploadDesign, getProfiles } from '@/lib/actions/planning'
 import { createClient } from '@/lib/supabase/client'
 import { timeAgo, formatDatetime } from '@/lib/utils'
+import MentionTextarea from './MentionTextarea'
 
 interface Comment {
   id: string
@@ -35,13 +36,21 @@ interface DesignReviewProps {
 
 function CommentThread({ comments, designId }: { comments: Comment[]; designId: string }) {
   const [commentText, setCommentText] = useState('')
+  const [mentionedIds, setMentionedIds] = useState<string[]>([])
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    getProfiles().then(setProfiles).catch(() => {})
+  }, [])
 
   function handleAddComment() {
     if (!commentText.trim()) return
     const text = commentText
+    const ids = mentionedIds
     setCommentText('')
-    startTransition(async () => { await addDesignComment(designId, text) })
+    setMentionedIds([])
+    startTransition(async () => { await addDesignComment(designId, text, ids) })
   }
 
   return (
@@ -65,20 +74,20 @@ function CommentThread({ comments, designId }: { comments: Comment[]; designId: 
         </div>
       )}
       <div className="flex gap-2">
-        <textarea
+        <MentionTextarea
           value={commentText}
-          onChange={e => setCommentText(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment() }
-          }}
-          placeholder="Add a comment..."
-          rows={1}
-          className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+          onChange={setCommentText}
+          onMentionsChange={setMentionedIds}
+          profiles={profiles}
+          placeholder="Add a comment... (type @ to mention someone)"
+          rows={2}
+          className="flex-1 focus:ring-blue-300"
+          disabled={isPending}
         />
         <button
           onClick={handleAddComment}
           disabled={!commentText.trim() || isPending}
-          className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors self-end"
         >
           Post
         </button>

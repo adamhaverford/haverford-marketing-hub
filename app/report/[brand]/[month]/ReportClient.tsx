@@ -6,7 +6,6 @@ import { MonthData } from '@/lib/performance'
 interface Props {
   brandId: string
   month: string
-  brandName: string
   brandColor: string
 }
 
@@ -54,7 +53,7 @@ function monthLabel(m: string) {
   return new Date(parseInt(y), parseInt(mo) - 1, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 }
 
-export default function ReportClient({ brandId, month, brandName, brandColor }: Props) {
+export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)

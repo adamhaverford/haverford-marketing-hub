@@ -21,7 +21,6 @@ export default async function ReportPage({
     <ReportClient
       brandId={params.brand}
       month={params.month}
-      brandName={brand.name}
       brandColor={brand.color}
     />
   )

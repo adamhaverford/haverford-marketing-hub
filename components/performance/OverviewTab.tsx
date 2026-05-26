@@ -123,13 +123,14 @@ export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount
             <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
               {monthLabel(featured.month)} — Month to Date
             </h3>
-            <button
-              onClick={() => setReportMonth(featured)}
+            <a
+              href={`/report/${brandId}/${featured.month}`}
+              target="_blank"
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg transition-colors"
             >
               <Share2 className="w-3.5 h-3.5" />
-              Share report
-            </button>
+              View report
+            </a>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <MetricCard

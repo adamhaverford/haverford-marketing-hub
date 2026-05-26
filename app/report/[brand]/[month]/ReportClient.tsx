@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Download, Share2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { MonthData } from '@/lib/performance'
 
@@ -54,9 +55,28 @@ function monthLabel(m: string) {
 }
 
 export default function ReportClient({ brandId, month, brandColor }: Props) {
+  const router = useRouter()
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+
+  const availableMonths = useMemo(() => {
+    const months = []
+    const now = new Date()
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const start = new Date(2026, 0, 1)
+    let d = new Date(start)
+    while (d <= lastMonth) {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      months.push(key)
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    }
+    return months.reverse()
+  }, [])
+
+  function handleMonthChange(newMonth: string) {
+    router.push(`/report/${brandId}/${newMonth}`)
+  }
 
   useEffect(() => {
     fetch(`/api/report-data?brandId=${brandId}&month=${month}`)
@@ -103,6 +123,21 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             </div>
             <h1 className="text-3xl font-bold text-gray-900">{monthLabel(data.month)}</h1>
             <p className="text-sm text-gray-400 mt-1">Email Marketing Performance Report</p>
+            <div className="mt-3">
+              <select
+                value={month}
+                onChange={e => handleMonthChange(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 text-gray-600"
+                style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
+              >
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>
+                    {new Date(parseInt(m.split('-')[0]), parseInt(m.split('-')[1]) - 1, 1)
+                      .toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex items-center gap-2 print:hidden">
             <button

@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Share2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { MonthData } from '@/lib/performance'
 
 interface Props {
   brandId: string
@@ -13,14 +12,12 @@ interface Props {
 interface ReportData {
   brand: { id: string; name: string; color: string; description: string | null }
   month: string
-  monthData: MonthData | null
-  prevMonthData: MonthData | null
+  monthData: { revenue: number | null; recipients: number | null; openRate: number | null; clickRate: number | null; unsubRate: number | null; bounceRate: number | null; spamRate: number | null } | null
+  prevMonthData: { revenue: number | null; recipients: number | null; openRate: number | null; clickRate: number | null; unsubRate: number | null; bounceRate: number | null; spamRate: number | null } | null
   monthlyCost: number | null
   roi: number | null
   campaignRevenue: number | null
   flowRevenue: number | null
-  blendedOpenRate: number | null
-  blendedClickRate: number | null
   journalEntries: { flow_name: string; category: string; description: string; outcome: string | null; changed_at: string }[]
 }
 
@@ -213,13 +210,13 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           {[
             {
               label: 'Open Rate',
-              current: data.blendedOpenRate ?? data.monthData?.openRate ?? null,
+              current: data.monthData?.openRate ?? null,
               prev: data.prevMonthData?.openRate ?? null,
               higherBetter: true,
             },
             {
               label: 'Click Rate',
-              current: data.blendedClickRate ?? data.monthData?.clickRate ?? null,
+              current: data.monthData?.clickRate ?? null,
               prev: data.prevMonthData?.clickRate ?? null,
               higherBetter: true,
             },

@@ -23,9 +23,14 @@ export async function GET(req: NextRequest) {
 
   const year = parseInt(month.split('-')[0])
 
-  const allMonths = brand.klaviyo_account
-    ? await fetchPerformanceData(brand.klaviyo_account, year)
-    : []
+  let allMonths: Awaited<ReturnType<typeof fetchPerformanceData>> = []
+  try {
+    if (brand.klaviyo_account) {
+      allMonths = await fetchPerformanceData(brand.klaviyo_account, year)
+    }
+  } catch (e) {
+    console.error('[report-data] fetchPerformanceData failed:', e)
+  }
 
   const monthData = allMonths.find(m => m.month === month) ?? null
 
@@ -70,8 +75,8 @@ export async function GET(req: NextRequest) {
 
   if (brand.klaviyo_account) {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-      const [campRes, flowRes] = await Promise.all([
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://haverford-marketing-hub.vercel.app'
+      const [campRes, flowRes] = await Promise.allSettled([
         fetch(`${baseUrl}/api/klaviyo-campaigns`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -84,14 +89,14 @@ export async function GET(req: NextRequest) {
         }),
       ])
 
-      if (campRes.ok) {
-        const campData = await campRes.json()
+      if (campRes.status === 'fulfilled' && campRes.value.ok) {
+        const campData = await campRes.value.json()
         const campMonth = (campData.monthly ?? []).find((m: { month: string }) => m.month === month)
         if (campMonth) campaignRevenue = campMonth.revenue ?? null
       }
 
-      if (flowRes.ok) {
-        const flowData = await flowRes.json()
+      if (flowRes.status === 'fulfilled' && flowRes.value.ok) {
+        const flowData = await flowRes.value.json()
         const flowMonth = (flowData.monthly ?? []).find((m: { month: string }) => m.month === month)
         if (flowMonth) {
           flowRevenue = flowMonth.revenue ?? null
@@ -103,7 +108,7 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch (e) {
-      console.error('Failed to fetch blended data:', e)
+      console.error('[report-data] blended data fetch failed:', e)
     }
   }
 
@@ -111,6 +116,7 @@ export async function GET(req: NextRequest) {
     ? monthData.revenue / monthlyCost
     : null
 
+  console.log('[report-data] returning data for', brand.name, month, { hasMonthData: !!monthData, roi })
   return NextResponse.json({
     brand: { id: brand.id, name: brand.name, color: brand.color, description: brand.description },
     month,

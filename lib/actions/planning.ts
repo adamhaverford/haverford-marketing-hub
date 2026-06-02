@@ -395,6 +395,17 @@ export async function uploadDesign(data: {
   revalidatePath('/planning', 'layout')
 }
 
+export async function deleteDesign(designId: string) {
+  const { profile } = await getAuthedProfile()
+  if (profile.role !== 'marketing') throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  await admin.from('planning_design_comments').delete().eq('design_id', designId)
+  const { error } = await admin.from('planning_designs').delete().eq('id', designId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/planning', 'layout')
+}
+
 export async function setDesignStatus(
   designId: string,
   status: 'pending' | 'approved' | 'declined',

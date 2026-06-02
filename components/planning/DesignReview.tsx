@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useTransition, useRef } from 'react'
-import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon, FileText } from 'lucide-react'
-import { setDesignStatus, addDesignComment, uploadDesign, getProfiles } from '@/lib/actions/planning'
+import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from 'lucide-react'
+import { setDesignStatus, addDesignComment, uploadDesign, deleteDesign, getProfiles } from '@/lib/actions/planning'
 import { createClient } from '@/lib/supabase/client'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 import MentionTextarea from './MentionTextarea'
@@ -103,6 +103,7 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
   const [highlighted, setHighlighted] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -269,6 +270,34 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
             {design.comments.length > 0 && <span className="font-medium">{design.comments.length}</span>}
             {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
+
+          {role === 'marketing' && (
+            confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => startTransition(async () => { await deleteDesign(design.id) })}
+                  disabled={isPending}
+                  className="px-2 py-1 text-xs font-medium bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                title="Delete this design"
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
         </div>
       </div>
 

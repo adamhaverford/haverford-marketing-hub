@@ -60,6 +60,12 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [notes, setNotes] = useState<{ emails_published: string; flows_watching: string; key_focus: string }>({
+    emails_published: '', flows_watching: '', key_focus: ''
+  })
+  const [isAuthed, setIsAuthed] = useState(false)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
 
   const year = parseInt(month.split('-')[0])
   const prevMonthKey = useMemo(() => {
@@ -183,6 +189,27 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         flowRows,
         journalEntries:  journal ?? [],
       })
+
+      // Check if user is logged in
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsAuthed(!!user)
+
+      // Load existing notes
+      const { data: existingNotes } = await supabase
+        .from('report_notes')
+        .select('emails_published, flows_watching, key_focus')
+        .eq('brand_id', brandId)
+        .eq('month', month)
+        .maybeSingle()
+
+      if (existingNotes) {
+        setNotes({
+          emails_published: existingNotes.emails_published ?? '',
+          flows_watching: existingNotes.flows_watching ?? '',
+          key_focus: existingNotes.key_focus ?? '',
+        })
+      }
+
       setLoading(false)
     }
     load()
@@ -212,6 +239,22 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
     const [y, mo] = m.split('-')
     return new Date(parseInt(y), parseInt(mo) - 1, 1)
       .toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+  }
+
+  async function saveNotes() {
+    setSavingNotes(true)
+    const supabase = createClient()
+    await supabase.from('report_notes').upsert({
+      brand_id: brandId,
+      month,
+      emails_published: notes.emails_published || null,
+      flows_watching: notes.flows_watching || null,
+      key_focus: notes.key_focus || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'brand_id,month' })
+    setSavingNotes(false)
+    setNotesSaved(true)
+    setTimeout(() => setNotesSaved(false), 2000)
   }
 
   const color = data?.brandColor ?? brandColor
@@ -434,6 +477,76 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             </table>
           </div>
         )}
+
+        {/* Monthly Notes */}
+        <div className="rounded-2xl border border-gray-100 bg-white p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Monthly Notes</h2>
+            {isAuthed && (
+              <button
+                onClick={saveNotes}
+                disabled={savingNotes}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg text-white disabled:opacity-50 transition-opacity hover:opacity-90"
+                style={{ backgroundColor: color }}
+              >
+                {savingNotes ? 'Saving...' : notesSaved ? '✓ Saved' : 'Save notes'}
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">📧 Emails published this month</p>
+              {isAuthed ? (
+                <textarea
+                  value={notes.emails_published}
+                  onChange={e => setNotes(prev => ({ ...prev, emails_published: e.target.value }))}
+                  placeholder="e.g. Evergreen: Bird netting harvest protection · Newsletter: EOFY sale"
+                  rows={3}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                />
+              ) : (
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                  {notes.emails_published || <span className="text-gray-300 italic">No notes added</span>}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">👀 Flows on the watchlist</p>
+              {isAuthed ? (
+                <textarea
+                  value={notes.flows_watching}
+                  onChange={e => setNotes(prev => ({ ...prev, flows_watching: e.target.value }))}
+                  placeholder="e.g. 45 day post-purchase — unsub rate at 2.04%, reviewing content angle"
+                  rows={3}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                />
+              ) : (
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                  {notes.flows_watching || <span className="text-gray-300 italic">No notes added</span>}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">🎯 Key focus / next month</p>
+              {isAuthed ? (
+                <textarea
+                  value={notes.key_focus}
+                  onChange={e => setNotes(prev => ({ ...prev, key_focus: e.target.value }))}
+                  placeholder="e.g. Get campaigns back in market — flows strong but over-reliant on automation"
+                  rows={2}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                />
+              ) : (
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                  {notes.key_focus || <span className="text-gray-300 italic">No notes added</span>}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="border-t border-gray-100 pt-6 flex items-center justify-between text-xs text-gray-400">

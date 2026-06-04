@@ -510,8 +510,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   value={notes.emails_published}
                   onChange={e => setNotes(prev => ({ ...prev, emails_published: e.target.value }))}
                   placeholder="e.g. Evergreen: Bird netting harvest protection · Newsletter: EOFY sale"
-                  rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  style={{ minHeight: '80px' }}
                 />
               ) : (
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">
@@ -527,8 +527,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   value={notes.flows_watching}
                   onChange={e => setNotes(prev => ({ ...prev, flows_watching: e.target.value }))}
                   placeholder="e.g. 45 day post-purchase — unsub rate at 2.04%, reviewing content angle"
-                  rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  style={{ minHeight: '80px' }}
                 />
               ) : (
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">
@@ -544,8 +544,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   value={notes.key_focus}
                   onChange={e => setNotes(prev => ({ ...prev, key_focus: e.target.value }))}
                   placeholder="e.g. Get campaigns back in market — flows strong but over-reliant on automation"
-                  rows={2}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  style={{ minHeight: '80px' }}
                 />
               ) : (
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">

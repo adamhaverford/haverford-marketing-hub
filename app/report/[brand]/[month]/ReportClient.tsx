@@ -90,32 +90,24 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       setLoading(true)
       const supabase = createClient()
 
-      const { data: brand } = await supabase
-        .from('brands')
-        .select('name, color, klaviyo_account, default_monthly_cost')
-        .eq('id', brandId)
-        .single()
+      // Fetch all Supabase data via admin API (works for public/incognito users)
+      const staticRes = await fetch(`/api/report-data-public?brandId=${brandId}&month=${month}`)
+      if (!staticRes.ok) { setLoading(false); return }
+      const { brand, monthlyCost, journalEntries, notes: existingNotes } = await staticRes.json()
 
-      if (!brand?.klaviyo_account) {
-        setLoading(false)
-        return
+      if (!brand?.klaviyo_account) { setLoading(false); return }
+
+      // Check auth (for notes editing UI)
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsAuthed(!!user)
+
+      if (existingNotes) {
+        setNotes({
+          emails_published: existingNotes.emails_published ?? '',
+          flows_watching:   existingNotes.flows_watching ?? '',
+          key_focus:        existingNotes.key_focus ?? '',
+        })
       }
-
-      const { data: costRow } = await supabase
-        .from('brand_monthly_costs')
-        .select('cost')
-        .eq('brand_id', brandId)
-        .eq('month', month)
-        .maybeSingle()
-      const monthlyCost = costRow?.cost ?? brand.default_monthly_cost ?? null
-
-      const { data: journal } = await supabase
-        .from('flow_journal_entries')
-        .select('flow_name, category, description, outcome, changed_at')
-        .eq('brand_id', brandId)
-        .gte('changed_at', `${month}-01`)
-        .lte('changed_at', `${month}-31`)
-        .order('changed_at')
 
       const headers = { 'Content-Type': 'application/json' }
       const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
@@ -187,24 +179,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         roi,
         campRows,
         flowRows,
-        journalEntries:  journal ?? [],
+        journalEntries,
       })
-
-      // Check if user is logged in
-      const { data: { user } } = await supabase.auth.getUser()
-      setIsAuthed(!!user)
-
-      // Load existing notes
-      const notesRes = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
-      const existingNotes = notesRes.ok ? await notesRes.json() : null
-
-      if (existingNotes) {
-        setNotes({
-          emails_published: existingNotes.emails_published ?? '',
-          flows_watching: existingNotes.flows_watching ?? '',
-          key_focus: existingNotes.key_focus ?? '',
-        })
-      }
 
       setLoading(false)
     }

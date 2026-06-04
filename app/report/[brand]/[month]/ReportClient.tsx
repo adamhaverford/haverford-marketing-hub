@@ -265,6 +265,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
     }
   }
 
+  function autoResize(el: HTMLTextAreaElement) {
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+
   const color = data?.brandColor ?? brandColor
 
   if (loading) return (
@@ -507,10 +512,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               <p className="text-xs font-semibold text-gray-500 mb-2">📧 Emails published this month</p>
               {isAuthed ? (
                 <textarea
+                  ref={el => { if (el) autoResize(el) }}
                   value={notes.emails_published}
-                  onChange={e => setNotes(prev => ({ ...prev, emails_published: e.target.value }))}
+                  onChange={e => { setNotes(prev => ({ ...prev, emails_published: e.target.value })); autoResize(e.target) }}
                   placeholder="e.g. Evergreen: Bird netting harvest protection · Newsletter: EOFY sale"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300 overflow-hidden"
                   style={{ minHeight: '80px' }}
                 />
               ) : (
@@ -524,10 +530,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               <p className="text-xs font-semibold text-gray-500 mb-2">👀 Flows on the watchlist</p>
               {isAuthed ? (
                 <textarea
+                  ref={el => { if (el) autoResize(el) }}
                   value={notes.flows_watching}
-                  onChange={e => setNotes(prev => ({ ...prev, flows_watching: e.target.value }))}
+                  onChange={e => { setNotes(prev => ({ ...prev, flows_watching: e.target.value })); autoResize(e.target) }}
                   placeholder="e.g. 45 day post-purchase — unsub rate at 2.04%, reviewing content angle"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300 overflow-hidden"
                   style={{ minHeight: '80px' }}
                 />
               ) : (
@@ -541,10 +548,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               <p className="text-xs font-semibold text-gray-500 mb-2">🎯 Key focus / next month</p>
               {isAuthed ? (
                 <textarea
+                  ref={el => { if (el) autoResize(el) }}
                   value={notes.key_focus}
-                  onChange={e => setNotes(prev => ({ ...prev, key_focus: e.target.value }))}
+                  onChange={e => { setNotes(prev => ({ ...prev, key_focus: e.target.value })); autoResize(e.target) }}
                   placeholder="e.g. Get campaigns back in market — flows strong but over-reliant on automation"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-y text-gray-700 placeholder-gray-300"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-gray-700 placeholder-gray-300 overflow-hidden"
                   style={{ minHeight: '80px' }}
                 />
               ) : (

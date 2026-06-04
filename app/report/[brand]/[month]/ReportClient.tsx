@@ -90,16 +90,35 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       setLoading(true)
       const supabase = createClient()
 
-      // Fetch all Supabase data via admin API (works for public/incognito users)
+      // Check auth first — determines whether to use live data or snapshot
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsAuthed(!!user)
+
+      if (!user) {
+        // Public visitor: load snapshot from report-notes
+        const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
+        if (!res.ok) { setLoading(false); return }
+        const { notes: existingNotes, snapshot, brand } = await res.json()
+        if (existingNotes) {
+          setNotes({
+            emails_published: existingNotes.emails_published ?? '',
+            flows_watching:   existingNotes.flows_watching ?? '',
+            key_focus:        existingNotes.key_focus ?? '',
+          })
+        }
+        if (snapshot) {
+          setData({ ...snapshot, brandColor: brand?.color ?? brandColor })
+        }
+        setLoading(false)
+        return
+      }
+
+      // Authenticated: fetch live Supabase data + Klaviyo
       const staticRes = await fetch(`/api/report-data-public?brandId=${brandId}&month=${month}`)
       if (!staticRes.ok) { setLoading(false); return }
       const { brand, monthlyCost, journalEntries, notes: existingNotes } = await staticRes.json()
 
       if (!brand?.klaviyo_account) { setLoading(false); return }
-
-      // Check auth (for notes editing UI)
-      const { data: { user } } = await supabase.auth.getUser()
-      setIsAuthed(!!user)
 
       if (existingNotes) {
         setNotes({
@@ -122,8 +141,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
       const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
 
-      function findMonth(data: Record<string, unknown>, target: string): MonthRow | null {
-        return (data.monthly as MonthRow[] ?? []).find(r => r.month === target) ?? null
+      function findMonth(d: Record<string, unknown>, target: string): MonthRow | null {
+        return (d.monthly as MonthRow[] ?? []).find(r => r.month === target) ?? null
       }
 
       const campMonth     = findMonth(campData, month)
@@ -185,7 +204,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       setLoading(false)
     }
     load()
-  }, [brandId, month, year, prevMonthKey])
+  }, [brandId, month, year, prevMonthKey, brandColor])
 
   function fmtCurrency(v: number | null | undefined) {
     if (v == null) return '—'
@@ -225,6 +244,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           emails_published: notes.emails_published,
           flows_watching: notes.flows_watching,
           key_focus: notes.key_focus,
+          snapshot: data ?? null,
         }),
       })
       if (!res.ok) {
@@ -478,7 +498,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                 className="text-xs font-medium px-3 py-1.5 rounded-lg text-white disabled:opacity-50 transition-opacity hover:opacity-90"
                 style={{ backgroundColor: color }}
               >
-                {savingNotes ? 'Saving...' : notesSaved ? '✓ Saved' : 'Save notes'}
+                {savingNotes ? 'Saving...' : notesSaved ? '✓ Saved & Published' : 'Save & Publish'}
               </button>
             )}
           </div>

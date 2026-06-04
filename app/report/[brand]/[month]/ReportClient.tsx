@@ -21,6 +21,25 @@ interface MonthRow {
   revenue: number
 }
 
+interface CampaignRow {
+  id: string
+  name: string
+  sentAt: string
+  recipients: number | null
+  openRate: number | null
+  clickRate: number | null
+  revenue: number | null
+}
+
+interface FlowRow {
+  id: string
+  name: string
+  recipients: number | null
+  openRate: number | null
+  clickRate: number | null
+  revenue: number | null
+}
+
 interface ReportData {
   brandName: string
   brandColor: string
@@ -31,6 +50,8 @@ interface ReportData {
   flowRevenue: number | null
   monthlyCost: number | null
   roi: number | null
+  campRows: CampaignRow[]
+  flowRows: FlowRow[]
   journalEntries: { flow_name: string; category: string; description: string; outcome: string | null; changed_at: string }[]
 }
 
@@ -39,6 +60,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [commentary, setCommentary] = useState<string | null>(null)
+  const [generatingCommentary, setGeneratingCommentary] = useState(false)
 
   const year = parseInt(month.split('-')[0])
   const prevMonthKey = useMemo(() => {
@@ -112,6 +135,16 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevCampMonth = findMonth(prevCampData, prevMonthKey)
       const prevFlowMonth = findMonth(prevFlowData, prevMonthKey)
 
+      const campRows: CampaignRow[] = (campData.campaigns ?? []).filter((c: CampaignRow) => {
+        if (!c.sentAt) return false
+        return c.sentAt.startsWith(month)
+      })
+
+      const flowRows: FlowRow[] = [...(flowData.flows ?? [])]
+        .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
+        .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
+        .slice(0, 6)
+
       function blend(camp: MonthRow | null, flow: MonthRow | null): MonthRow | null {
         if (!camp && !flow) return null
         const campDel  = camp?.recipients ?? 0
@@ -148,6 +181,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         flowRevenue:     flowMonth?.revenue ?? null,
         monthlyCost,
         roi,
+        campRows,
+        flowRows,
         journalEntries:  journal ?? [],
       })
       setLoading(false)
@@ -179,6 +214,66 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
     const [y, mo] = m.split('-')
     return new Date(parseInt(y), parseInt(mo) - 1, 1)
       .toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+  }
+
+  async function generateCommentary() {
+    if (!data) return
+    setGeneratingCommentary(true)
+    setCommentary(null)
+
+    const prompt = `You are writing a concise monthly email performance commentary for ${data.brandName} for ${monthLabel(data.month)}.
+
+Write in plain everyday English — like a smart marketing manager explaining results to leadership. No jargon. Keep it to 4-5 short paragraphs covering:
+1. Overall month summary — how was it, what drove performance
+2. Campaign performance (if any campaigns ran, mention them by name and how they did)
+3. Flow performance — which flows drove the most revenue
+4. Key metrics to note — anything above or below benchmark (open rate benchmark 35-45%, click rate 1-3%, unsub benchmark <0.5%, spam benchmark <0.08%)
+5. One thing to watch if anything looks off
+
+Data for ${monthLabel(data.month)}:
+- Total revenue: ${fmtCurrency(data.current?.revenue)}
+- Campaign revenue: ${fmtCurrency(data.campaignRevenue)}
+- Flow revenue: ${fmtCurrency(data.flowRevenue)}
+- ROI: ${data.roi ? `${data.roi.toFixed(1)}x` : 'n/a'} (cost: ${fmtCurrency(data.monthlyCost)})
+- Open rate: ${fmtRate(data.current?.openRate)}
+- Click rate: ${fmtRate(data.current?.clickRate)}
+- Unsub rate: ${fmtRate(data.current?.unsubRate)}
+- Bounce rate: ${fmtRate(data.current?.bounceRate)}
+- Spam rate: ${fmtRate(data.current?.spamRate)}
+- Recipients: ${data.current?.recipients?.toLocaleString() ?? '—'}
+
+vs previous month (${monthLabel(prevMonthKey)}):
+- Revenue: ${fmtCurrency(data.prev?.revenue)}
+- Open rate: ${fmtRate(data.prev?.openRate)}
+- Click rate: ${fmtRate(data.prev?.clickRate)}
+
+Campaigns sent this month:
+${data.campRows.length === 0 ? 'No campaigns sent this month.' : data.campRows.map(c => `- ${c.name}: ${c.recipients?.toLocaleString() ?? '?'} sent, ${fmtRate(c.openRate)} open rate, ${fmtRate(c.clickRate)} click rate, ${fmtCurrency(c.revenue)} revenue`).join('\n')}
+
+Top flows by revenue:
+${data.flowRows.map(f => `- ${f.name}: ${f.recipients?.toLocaleString() ?? '?'} recipients, ${fmtRate(f.openRate)} open rate, ${fmtCurrency(f.revenue)} revenue`).join('\n')}
+
+Write the commentary now. No bullet points — prose only. No headers. Just 4-5 paragraphs.`
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+      const result = await response.json()
+      const text = result.content?.[0]?.text ?? null
+      setCommentary(text)
+    } catch (e) {
+      console.error('Commentary generation failed:', e)
+      setCommentary('Commentary unavailable.')
+    } finally {
+      setGeneratingCommentary(false)
+    }
   }
 
   const color = data?.brandColor ?? brandColor
@@ -312,29 +407,138 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           ))}
         </div>
 
-        {/* Flow journal */}
-        {data.journalEntries.length > 0 && (
+        {/* Revenue breakdown */}
+        {(data.campaignRevenue != null || data.flowRevenue != null) && (
           <div className="rounded-2xl border border-gray-100 bg-white p-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Flow Changes This Month</h2>
-            <div className="space-y-3">
-              {data.journalEntries.map((e, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 flex-shrink-0 ${
-                    e.outcome === 'improved' ? 'bg-green-100 text-green-700' :
-                    e.outcome === 'worse'    ? 'bg-red-100 text-red-700' :
-                                              'bg-gray-100 text-gray-500'
-                  }`}>
-                    {e.outcome ?? 'unscored'}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{e.flow_name} <span className="text-gray-400 font-normal">· {e.category}</span></p>
-                    <p className="text-sm text-gray-500">{e.description}</p>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Revenue Breakdown</h2>
+            {(() => {
+              const total = (data.campaignRevenue ?? 0) + (data.flowRevenue ?? 0)
+              const flowPct = total > 0 ? ((data.flowRevenue ?? 0) / total) * 100 : 0
+              const campPct = total > 0 ? ((data.campaignRevenue ?? 0) / total) * 100 : 0
+              return (
+                <div className="space-y-3">
+                  <div className="h-3 rounded-full overflow-hidden bg-gray-100 flex">
+                    <div className="h-full transition-all" style={{ width: `${campPct}%`, backgroundColor: color }} />
+                    <div className="h-full transition-all bg-blue-400" style={{ width: `${flowPct}%` }} />
+                  </div>
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                      <span className="text-gray-500">Campaigns</span>
+                      <span className="font-semibold text-gray-800">{fmtCurrency(data.campaignRevenue)}</span>
+                      <span className="text-gray-400">({campPct.toFixed(0)}%)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-400" />
+                      <span className="text-gray-500">Flows</span>
+                      <span className="font-semibold text-gray-800">{fmtCurrency(data.flowRevenue)}</span>
+                      <span className="text-gray-400">({flowPct.toFixed(0)}%)</span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })()}
           </div>
         )}
+
+        {/* Campaigns table */}
+        {data.campRows.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Campaigns This Month</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-semibold text-gray-400 pb-2 pr-4">Campaign</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Sent</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Open Rate</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Click Rate</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.campRows.map((c, i) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 pr-4 font-medium text-gray-800 max-w-xs truncate">{c.name}</td>
+                    <td className="py-3 px-4 text-right text-gray-500">{c.recipients?.toLocaleString() ?? '—'}</td>
+                    <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.openRate)}</td>
+                    <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.clickRate)}</td>
+                    <td className="py-3 text-right font-semibold text-gray-800">{fmtCurrency(c.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Top flows table */}
+        {data.flowRows.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Top Flows by Revenue</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-semibold text-gray-400 pb-2 pr-4">Flow</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Recipients</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Open Rate</th>
+                  <th className="text-right text-xs font-semibold text-gray-400 pb-2">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.flowRows.map((f, i) => (
+                  <tr key={i} className="border-b border-gray-50 last:border-0">
+                    <td className="py-3 pr-4 font-medium text-gray-800 max-w-xs truncate">{f.name}</td>
+                    <td className="py-3 px-4 text-right text-gray-500">{f.recipients?.toLocaleString() ?? '—'}</td>
+                    <td className="py-3 px-4 text-right text-gray-500">{fmtRate(f.openRate)}</td>
+                    <td className="py-3 text-right font-semibold text-gray-800">{fmtCurrency(f.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* AI Commentary */}
+        <div className="rounded-2xl border border-gray-100 bg-white p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">AI Commentary</h2>
+            {!commentary && (
+              <button
+                onClick={generateCommentary}
+                disabled={generatingCommentary}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: color }}
+              >
+                {generatingCommentary ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>✨ Generate commentary</>
+                )}
+              </button>
+            )}
+            {commentary && (
+              <button
+                onClick={generateCommentary}
+                disabled={generatingCommentary}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Regenerate
+              </button>
+            )}
+          </div>
+          {!commentary && !generatingCommentary && (
+            <p className="text-sm text-gray-400 italic">Click &quot;Generate commentary&quot; to get an AI-written plain English summary of this month&apos;s performance.</p>
+          )}
+          {commentary && (
+            <div className="text-sm text-gray-700 leading-relaxed space-y-3">
+              {commentary.split('\n\n').filter(Boolean).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="border-t border-gray-100 pt-6 flex items-center justify-between text-xs text-gray-400">

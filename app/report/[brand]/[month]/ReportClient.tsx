@@ -195,12 +195,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       setIsAuthed(!!user)
 
       // Load existing notes
-      const { data: existingNotes } = await supabase
-        .from('report_notes')
-        .select('emails_published, flows_watching, key_focus')
-        .eq('brand_id', brandId)
-        .eq('month', month)
-        .maybeSingle()
+      const notesRes = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
+      const existingNotes = notesRes.ok ? await notesRes.json() : null
 
       if (existingNotes) {
         setNotes({
@@ -243,18 +239,30 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
   async function saveNotes() {
     setSavingNotes(true)
-    const supabase = createClient()
-    await supabase.from('report_notes').upsert({
-      brand_id: brandId,
-      month,
-      emails_published: notes.emails_published || null,
-      flows_watching: notes.flows_watching || null,
-      key_focus: notes.key_focus || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'brand_id,month' })
-    setSavingNotes(false)
-    setNotesSaved(true)
-    setTimeout(() => setNotesSaved(false), 2000)
+    try {
+      const res = await fetch('/api/report-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId,
+          month,
+          emails_published: notes.emails_published,
+          flows_watching: notes.flows_watching,
+          key_focus: notes.key_focus,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Failed to save notes:', err)
+      } else {
+        setNotesSaved(true)
+        setTimeout(() => setNotesSaved(false), 2000)
+      }
+    } catch (e) {
+      console.error('Save notes error:', e)
+    } finally {
+      setSavingNotes(false)
+    }
   }
 
   const color = data?.brandColor ?? brandColor

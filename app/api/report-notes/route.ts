@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
     .select('emails_published, flows_watching, key_focus')
     .eq('brand_id', brandId)
     .eq('month', month)
-    .maybeSingle()
+    .limit(1)
 
-  return NextResponse.json(data ?? {})
+  const row = Array.isArray(data) && data.length > 0 ? data[0] : null
+  return NextResponse.json(row ?? {})
 }
 
 export async function POST(req: NextRequest) {

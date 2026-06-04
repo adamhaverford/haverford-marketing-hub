@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Share2, Pencil, Check, X } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { MonthData, BlendedMonth, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
-import OpenRateChart from './OpenRateChart'
 import SendReportModal from './SendReportModal'
 import CampaignFlowBreakdown from './CampaignFlowBreakdown'
 import { getBrandCost, upsertBrandCost } from '@/lib/actions/roi'
@@ -234,12 +234,39 @@ export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount
         </div>
       )}
 
-      {/* Open rate chart */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
-          Open &amp; Click Rate Trend
-        </h3>
-        <OpenRateChart data={data} />
+      {/* Revenue chart */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-6">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Monthly Revenue Trend</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={data.filter(d => d.revenue !== null && d.revenue > 0)} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="month"
+              tickFormatter={(m: string) => {
+                const [, mo] = m.split('-')
+                return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(mo)-1]
+              }}
+              tick={{ fontSize: 11, fill: '#9CA3AF' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={(v: number) => `$${(v/1000).toFixed(0)}k`}
+              tick={{ fontSize: 11, fill: '#9CA3AF' }}
+              axisLine={false}
+              tickLine={false}
+              width={40}
+            />
+            <Tooltip
+              formatter={(value: number) => [`A$${value.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, 'Revenue']}
+              labelFormatter={(m: string) => {
+                const [y, mo] = m.split('-')
+                return new Date(parseInt(y), parseInt(mo)-1, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+              }}
+              contentStyle={{ borderRadius: '10px', border: '1px solid #F3F4F6', fontSize: '12px' }}
+            />
+            <Bar dataKey="revenue" fill="#E8611A" radius={[4,4,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Monthly table */}

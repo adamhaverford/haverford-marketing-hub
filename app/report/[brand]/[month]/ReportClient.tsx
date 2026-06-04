@@ -60,8 +60,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [data, setData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [commentary, setCommentary] = useState<string | null>(null)
-  const [generatingCommentary, setGeneratingCommentary] = useState(false)
 
   const year = parseInt(month.split('-')[0])
   const prevMonthKey = useMemo(() => {
@@ -214,62 +212,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
     const [y, mo] = m.split('-')
     return new Date(parseInt(y), parseInt(mo) - 1, 1)
       .toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
-  }
-
-  async function generateCommentary() {
-    if (!data) return
-    setGeneratingCommentary(true)
-    setCommentary(null)
-
-    const prompt = `You are writing a concise monthly email performance commentary for ${data.brandName} for ${monthLabel(data.month)}.
-
-Write in plain everyday English — like a smart marketing manager explaining results to leadership. No jargon. Keep it to 4-5 short paragraphs covering:
-1. Overall month summary — how was it, what drove performance
-2. Campaign performance (if any campaigns ran, mention them by name and how they did)
-3. Flow performance — which flows drove the most revenue
-4. Key metrics to note — anything above or below benchmark (open rate benchmark 35-45%, click rate 1-3%, unsub benchmark <0.5%, spam benchmark <0.08%)
-5. One thing to watch if anything looks off
-
-Data for ${monthLabel(data.month)}:
-- Total revenue: ${fmtCurrency(data.current?.revenue)}
-- Campaign revenue: ${fmtCurrency(data.campaignRevenue)}
-- Flow revenue: ${fmtCurrency(data.flowRevenue)}
-- ROI: ${data.roi ? `${data.roi.toFixed(1)}x` : 'n/a'} (cost: ${fmtCurrency(data.monthlyCost)})
-- Open rate: ${fmtRate(data.current?.openRate)}
-- Click rate: ${fmtRate(data.current?.clickRate)}
-- Unsub rate: ${fmtRate(data.current?.unsubRate)}
-- Bounce rate: ${fmtRate(data.current?.bounceRate)}
-- Spam rate: ${fmtRate(data.current?.spamRate)}
-- Recipients: ${data.current?.recipients?.toLocaleString() ?? '—'}
-
-vs previous month (${monthLabel(prevMonthKey)}):
-- Revenue: ${fmtCurrency(data.prev?.revenue)}
-- Open rate: ${fmtRate(data.prev?.openRate)}
-- Click rate: ${fmtRate(data.prev?.clickRate)}
-
-Campaigns sent this month:
-${data.campRows.length === 0 ? 'No campaigns sent this month.' : data.campRows.map(c => `- ${c.name}: ${c.recipients?.toLocaleString() ?? '?'} sent, ${fmtRate(c.openRate)} open rate, ${fmtRate(c.clickRate)} click rate, ${fmtCurrency(c.revenue)} revenue`).join('\n')}
-
-Top flows by revenue:
-${data.flowRows.map(f => `- ${f.name}: ${f.recipients?.toLocaleString() ?? '?'} recipients, ${fmtRate(f.openRate)} open rate, ${fmtCurrency(f.revenue)} revenue`).join('\n')}
-
-Write the commentary now. No bullet points — prose only. No headers. Just 4-5 paragraphs.`
-
-    try {
-      const response = await fetch('/api/generate-commentary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      })
-      const result = await response.json()
-      const text = result.content?.[0]?.text ?? null
-      setCommentary(text)
-    } catch (e) {
-      console.error('Commentary generation failed:', e)
-      setCommentary('Commentary unavailable.')
-    } finally {
-      setGeneratingCommentary(false)
-    }
   }
 
   const color = data?.brandColor ?? brandColor
@@ -492,49 +434,6 @@ Write the commentary now. No bullet points — prose only. No headers. Just 4-5 
             </table>
           </div>
         )}
-
-        {/* AI Commentary */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">AI Commentary</h2>
-            {!commentary && (
-              <button
-                onClick={generateCommentary}
-                disabled={generatingCommentary}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl disabled:opacity-50 hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: color }}
-              >
-                {generatingCommentary ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>✨ Generate commentary</>
-                )}
-              </button>
-            )}
-            {commentary && (
-              <button
-                onClick={generateCommentary}
-                disabled={generatingCommentary}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Regenerate
-              </button>
-            )}
-          </div>
-          {!commentary && !generatingCommentary && (
-            <p className="text-sm text-gray-400 italic">Click &quot;Generate commentary&quot; to get an AI-written plain English summary of this month&apos;s performance.</p>
-          )}
-          {commentary && (
-            <div className="text-sm text-gray-700 leading-relaxed space-y-3">
-              {commentary.split('\n\n').filter(Boolean).map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Footer */}
         <div className="border-t border-gray-100 pt-6 flex items-center justify-between text-xs text-gray-400">

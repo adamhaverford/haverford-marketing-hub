@@ -256,14 +256,10 @@ ${data.flowRows.map(f => `- ${f.name}: ${f.recipients?.toLocaleString() ?? '?'} 
 Write the commentary now. No bullet points — prose only. No headers. Just 4-5 paragraphs.`
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/generate-commentary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+        body: JSON.stringify({ prompt }),
       })
       const result = await response.json()
       const text = result.content?.[0]?.text ?? null

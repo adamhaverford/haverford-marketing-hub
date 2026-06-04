@@ -257,7 +257,7 @@ export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount
               width={40}
             />
             <Tooltip
-              formatter={(value: number) => [`A$${value.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, 'Revenue']}
+              formatter={(value) => [`A$${Number(value).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, 'Revenue']}
               labelFormatter={(m: string) => {
                 const [y, mo] = m.split('-')
                 return new Date(parseInt(y), parseInt(mo)-1, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })

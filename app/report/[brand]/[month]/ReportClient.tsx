@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Share2, TrendingUp, TrendingDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { KLAVIYO_BRAND_CONFIG } from '@/lib/klaviyo-config'
 
 interface Props {
   brandId: string
@@ -196,24 +197,65 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const roi = monthlyCost && current?.revenue && monthlyCost > 0
         ? current.revenue / monthlyCost : null
 
-      // Fetch net subscriber growth for current and prev months
+      // Fetch net subscriber growth using the same metric-aggregates approach as performance.ts
       let netGrowth: number | null = null
       let newSubscribers: number | null = null
       let unsubscribes: number | null = null
       let prevNetGrowth: number | null = null
-      const [curSubRes, prevSubRes] = await Promise.allSettled([
-        fetch('/api/klaviyo-net-subscribers', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
-        fetch('/api/klaviyo-net-subscribers', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
-      ])
-      if (curSubRes.status === 'fulfilled' && curSubRes.value.ok) {
-        const d = await curSubRes.value.json()
-        netGrowth      = d.netGrowth      ?? null
-        newSubscribers = d.newSubscribers ?? null
-        unsubscribes   = d.unsubscribes   ?? null
-      }
-      if (prevSubRes.status === 'fulfilled' && prevSubRes.value.ok) {
-        const d = await prevSubRes.value.json()
-        prevNetGrowth = d.netGrowth ?? null
+      const brandMetrics = KLAVIYO_BRAND_CONFIG[brand.klaviyo_account]?.metrics
+      if (brandMetrics) {
+        const prevYear = parseInt(prevMonthKey.split('-')[0])
+        const needsPrevYear = prevYear !== year
+
+        function parseMetricCount(json: unknown): Record<string, number> {
+          const result: Record<string, number> = {}
+          const attrs = (json as { data?: { attributes?: { dates?: string[]; data?: { measurements?: Record<string, number[]> }[] } } })?.data?.attributes
+          if (!attrs) return result
+          const dates: string[] = attrs.dates ?? []
+          const entries: { measurements?: Record<string, number[]> }[] = attrs.data ?? []
+          for (const entry of entries) {
+            const values: number[] = entry.measurements?.count ?? []
+            dates.forEach((date, i) => {
+              const key = date.substring(0, 7)
+              result[key] = (result[key] ?? 0) + (values[i] ?? 0)
+            })
+          }
+          return result
+        }
+
+        const mkBody = (metricId: string, y: number) =>
+          JSON.stringify({ account: brand.klaviyo_account, metricId, year: y, measurements: ['count'] })
+
+        const [subCurRes, unsubCurRes, subPrevRes, unsubPrevRes] = await Promise.allSettled([
+          fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, year) }),
+          fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, year) }),
+          needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, prevYear) }) : Promise.resolve(null),
+          needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, prevYear) }) : Promise.resolve(null),
+        ])
+
+        const subCurJson   = subCurRes.status   === 'fulfilled' && subCurRes.value?.ok   ? await subCurRes.value.json()   : null
+        const unsubCurJson = unsubCurRes.status  === 'fulfilled' && unsubCurRes.value?.ok  ? await unsubCurRes.value.json()  : null
+        const subPrevJson  = subPrevRes.status   === 'fulfilled' && subPrevRes.value?.ok   ? await subPrevRes.value.json()   : null
+        const unsubPrevJson= unsubPrevRes.status === 'fulfilled' && unsubPrevRes.value?.ok ? await unsubPrevRes.value.json() : null
+
+        const subCurCounts   = parseMetricCount(subCurJson)
+        const unsubCurCounts = parseMetricCount(unsubCurJson)
+        const subPrevCounts   = needsPrevYear ? parseMetricCount(subPrevJson)   : subCurCounts
+        const unsubPrevCounts = needsPrevYear ? parseMetricCount(unsubPrevJson) : unsubCurCounts
+
+        const curSub   = subCurCounts[month]     ?? null
+        const curUnsub = unsubCurCounts[month]   ?? null
+        const prvSub   = subPrevCounts[prevMonthKey]   ?? null
+        const prvUnsub = unsubPrevCounts[prevMonthKey] ?? null
+
+        if (curSub !== null && curUnsub !== null) {
+          newSubscribers = curSub
+          unsubscribes   = curUnsub
+          netGrowth      = curSub - curUnsub
+        }
+        if (prvSub !== null && prvUnsub !== null) {
+          prevNetGrowth = prvSub - prvUnsub
+        }
       }
       setData({
         brandName:       brand.name,

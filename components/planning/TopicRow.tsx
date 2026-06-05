@@ -43,6 +43,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null)
+  const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set())
   const [declineReason, setDeclineReason] = useState('')
   const [showDeclineInput, setShowDeclineInput] = useState(false)
   const [highlighted, setHighlighted] = useState(false)
@@ -378,7 +379,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
             <p className="text-xs text-gray-400 italic">No comments yet.</p>
           ) : (
             <div className="space-y-2">
-              {topic.comments.map(c => (
+              {topic.comments.filter(c => !deletedCommentIds.has(c.id)).map(c => (
                 <div key={c.id} className="flex gap-2 group/comment">
                   <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
                     {(c.profiles?.full_name ?? 'U').charAt(0).toUpperCase()}
@@ -392,7 +393,10 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
                   </div>
                   {(role === 'marketing' || (currentProfileId && c.user_id === currentProfileId)) && (
                     <button
-                      onClick={() => startTransition(async () => { await deleteTopicComment(c.id) })}
+                      onClick={() => {
+                        setDeletedCommentIds(prev => new Set(prev).add(c.id))
+                        startTransition(async () => { await deleteTopicComment(c.id) })
+                      }}
                       title="Delete comment"
                       className="opacity-0 group-hover/comment:opacity-100 transition-opacity self-start mt-1 text-gray-300 hover:text-red-400"
                     >

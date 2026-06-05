@@ -40,6 +40,7 @@ function CommentThread({ comments, designId, role }: { comments: Comment[]; desi
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null)
+  const [deletedCommentIds, setDeletedCommentIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -60,7 +61,7 @@ function CommentThread({ comments, designId, role }: { comments: Comment[]; desi
     <div className="space-y-2">
       {comments.length > 0 && (
         <div className="space-y-2">
-          {comments.map(c => (
+          {comments.filter(c => !deletedCommentIds.has(c.id)).map(c => (
             <div key={c.id} className="flex gap-2 group/comment">
               <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
                 {(c.profiles?.full_name ?? 'U').charAt(0).toUpperCase()}
@@ -74,7 +75,10 @@ function CommentThread({ comments, designId, role }: { comments: Comment[]; desi
               </div>
               {(role === 'marketing' || (currentProfileId && c.user_id === currentProfileId)) && (
                 <button
-                  onClick={() => startTransition(async () => { await deleteDesignComment(c.id) })}
+                  onClick={() => {
+                    setDeletedCommentIds(prev => new Set(prev).add(c.id))
+                    startTransition(async () => { await deleteDesignComment(c.id) })
+                  }}
                   title="Delete comment"
                   className="opacity-0 group-hover/comment:opacity-100 transition-opacity self-start mt-1 text-gray-300 hover:text-red-400"
                 >

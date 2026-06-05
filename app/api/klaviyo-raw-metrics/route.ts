@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'count', true)
+  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'count', false)
   await new Promise(r => setTimeout(r, 500))
   const bounceCount    = await fetchMetric(config.metrics.bounced, 'count')
   await new Promise(r => setTimeout(r, 500))

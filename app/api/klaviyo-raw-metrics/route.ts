@@ -47,12 +47,17 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', { method: 'POST', headers, body })
       if (!res.ok) return 0
-      const data = await res.json()
-      // Klaviyo returns results array with {date, values} objects
-      const results = data?.data?.attributes?.results ?? []
-      return results.reduce((sum: number, r: { measurements?: { count?: number[] } }) => {
-        const count = r?.measurements?.count?.[0] ?? 0
-        return sum + count
+      const json = await res.json()
+      const attrs = json?.data?.attributes
+      if (!attrs) return 0
+      const dates: string[] = attrs.dates ?? []
+      const entries: { measurements?: { count?: number[] } }[] = attrs.data ?? []
+      // Find the index of our target month in the dates array
+      const monthIdx = dates.findIndex((d: string) => d.startsWith(month))
+      if (monthIdx === -1) return 0
+      // Sum across all entries for that month index
+      return entries.reduce((sum, entry) => {
+        return sum + (entry.measurements?.count?.[monthIdx] ?? 0)
       }, 0)
     } catch {
       return 0

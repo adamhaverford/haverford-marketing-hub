@@ -78,6 +78,37 @@ function parseMetricCount(json: unknown): Record<string, number> {
   return result
 }
 
+function findMonth(d: Record<string, unknown>, target: string): MonthRow | null {
+  return (d.monthly as MonthRow[] ?? []).find(r => r.month === target) ?? null
+}
+
+function blend(camp: MonthRow | null, flow: MonthRow | null): MonthRow | null {
+  if (!camp && !flow) return null
+  const campDel  = camp?.recipients ?? 0
+  const flowDel  = flow?.recipients ?? 0
+  const totalDel = campDel + flowDel
+  const campOpens  = campDel > 0 ? (camp!.openRate  ?? 0) * campDel / 100 : 0
+  const flowOpens  = flowDel > 0 ? (flow!.openRate  ?? 0) * flowDel / 100 : 0
+  const campClicks = campDel > 0 ? (camp!.clickRate ?? 0) * campDel / 100 : 0
+  const flowClicks = flowDel > 0 ? (flow!.clickRate ?? 0) * flowDel / 100 : 0
+  const campUnsubs  = campDel > 0 ? (camp!.unsubRate  ?? 0) * campDel / 100 : 0
+  const flowUnsubs  = flowDel > 0 ? (flow!.unsubRate  ?? 0) * flowDel / 100 : 0
+  const campBounces = campDel > 0 ? (camp!.bounceRate ?? 0) * campDel / 100 : 0
+  const flowBounces = flowDel > 0 ? (flow!.bounceRate ?? 0) * flowDel / 100 : 0
+  const campSpam    = campDel > 0 ? (camp!.spamRate   ?? 0) * campDel / 100 : 0
+  const flowSpam    = flowDel > 0 ? (flow!.spamRate   ?? 0) * flowDel / 100 : 0
+  return {
+    month:      camp?.month ?? flow?.month ?? '',
+    recipients: totalDel,
+    revenue:    (camp?.revenue ?? 0) + (flow?.revenue ?? 0),
+    openRate:   totalDel > 0 ? (campOpens  + flowOpens)  / totalDel * 100 : null,
+    clickRate:  totalDel > 0 ? (campClicks + flowClicks) / totalDel * 100 : null,
+    unsubRate:  totalDel > 0 ? (campUnsubs  + flowUnsubs)  / totalDel * 100 : null,
+    bounceRate: totalDel > 0 ? (campBounces + flowBounces) / totalDel * 100 : null,
+    spamRate:   totalDel > 0 ? (campSpam    + flowSpam)    / totalDel * 100 : null,
+  }
+}
+
 export default function ReportClient({ brandId, month, brandColor }: Props) {
   const router = useRouter()
   const [data, setData] = useState<ReportData | null>(null)
@@ -89,6 +120,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [isAuthed, setIsAuthed] = useState(false)
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [snapshotDate, setSnapshotDate] = useState<string | null>(null)
 
   const year = parseInt(month.split('-')[0])
   const prevMonthKey = useMemo(() => {
@@ -113,35 +146,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       setLoading(true)
       const supabase = createClient()
 
-      // Check auth first — determines whether to use live data or snapshot
-      const { data: { user } } = await supabase.auth.getUser()
-      setIsAuthed(!!user)
-
-      if (!user) {
-        // Public visitor: load snapshot from report-notes
-        const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
-        if (!res.ok) { setLoading(false); return }
-        const { notes: existingNotes, snapshot, brand } = await res.json()
-        if (existingNotes) {
-          setNotes({
-            emails_published: existingNotes.emails_published ?? '',
-            flows_watching:   existingNotes.flows_watching ?? '',
-            key_focus:        existingNotes.key_focus ?? '',
-          })
-        }
-        if (snapshot) {
-          setData({ ...snapshot, brandColor: brand?.color ?? brandColor, yoyRevenue: snapshot.yoyRevenue ?? [] })
-        }
-        setLoading(false)
-        return
-      }
-
-      // Authenticated: fetch live Supabase data + Klaviyo
-      const staticRes = await fetch(`/api/report-data-public?brandId=${brandId}&month=${month}`)
-      if (!staticRes.ok) { setLoading(false); return }
-      const { brand, monthlyCost, journalEntries, notes: existingNotes } = await staticRes.json()
-
-      if (!brand?.klaviyo_account) { setLoading(false); return }
+      // Always load snapshot first for everyone
+      const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
+      if (!res.ok) { setLoading(false); return }
+      const { notes: existingNotes, snapshot, brand, journalEntries } = await res.json()
 
       if (existingNotes) {
         setNotes({
@@ -151,6 +159,33 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         })
       }
 
+      const { data: { user } } = await supabase.auth.getUser()
+      setIsAuthed(!!user)
+
+      if (snapshot && brand) {
+        setData({
+          ...snapshot,
+          brandColor: brand?.color ?? brandColor,
+          yoyRevenue: snapshot.yoyRevenue ?? [],
+          journalEntries: journalEntries ?? snapshot.journalEntries ?? [],
+        })
+        setSnapshotDate(existingNotes?.updated_at ?? null)
+      }
+
+      setLoading(false)
+    }
+    load()
+  }, [brandId, month, brandColor])
+
+  async function refresh() {
+    if (!isAuthed) return
+    setIsRefreshing(true)
+    try {
+      const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
+      if (!res.ok) return
+      const { brand, monthlyCost, journalEntries } = await res.json()
+      if (!brand?.klaviyo_account) return
+
       const headers = { 'Content-Type': 'application/json' }
       const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
         fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
@@ -159,14 +194,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: parseInt(prevMonthKey.split('-')[0]), month: prevMonthKey }) }),
       ])
 
-      const campData    = campRes.status    === 'fulfilled' && campRes.value.ok    ? await campRes.value.json()    : {}
-      const flowData    = flowRes.status    === 'fulfilled' && flowRes.value.ok    ? await flowRes.value.json()    : {}
+      const campData     = campRes.status     === 'fulfilled' && campRes.value.ok     ? await campRes.value.json()     : {}
+      const flowData     = flowRes.status     === 'fulfilled' && flowRes.value.ok     ? await flowRes.value.json()     : {}
       const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
       const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
-
-      function findMonth(d: Record<string, unknown>, target: string): MonthRow | null {
-        return (d.monthly as MonthRow[] ?? []).find(r => r.month === target) ?? null
-      }
 
       const campMonth     = findMonth(campData, month)
       const flowMonth     = findMonth(flowData, month)
@@ -183,39 +214,12 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
         .slice(0, 6)
 
-      function blend(camp: MonthRow | null, flow: MonthRow | null): MonthRow | null {
-        if (!camp && !flow) return null
-        const campDel  = camp?.recipients ?? 0
-        const flowDel  = flow?.recipients ?? 0
-        const totalDel = campDel + flowDel
-        const campOpens  = campDel > 0 ? (camp!.openRate  ?? 0) * campDel / 100 : 0
-        const flowOpens  = flowDel > 0 ? (flow!.openRate  ?? 0) * flowDel / 100 : 0
-        const campClicks = campDel > 0 ? (camp!.clickRate ?? 0) * campDel / 100 : 0
-        const flowClicks = flowDel > 0 ? (flow!.clickRate ?? 0) * flowDel / 100 : 0
-        const campUnsubs  = campDel > 0 ? (camp!.unsubRate  ?? 0) * campDel / 100 : 0
-        const flowUnsubs  = flowDel > 0 ? (flow!.unsubRate  ?? 0) * flowDel / 100 : 0
-        const campBounces = campDel > 0 ? (camp!.bounceRate ?? 0) * campDel / 100 : 0
-        const flowBounces = flowDel > 0 ? (flow!.bounceRate ?? 0) * flowDel / 100 : 0
-        const campSpam    = campDel > 0 ? (camp!.spamRate   ?? 0) * campDel / 100 : 0
-        const flowSpam    = flowDel > 0 ? (flow!.spamRate   ?? 0) * flowDel / 100 : 0
-        return {
-          month:      camp?.month ?? flow?.month ?? '',
-          recipients: totalDel,
-          revenue:    (camp?.revenue ?? 0) + (flow?.revenue ?? 0),
-          openRate:   totalDel > 0 ? (campOpens  + flowOpens)  / totalDel * 100 : null,
-          clickRate:  totalDel > 0 ? (campClicks + flowClicks) / totalDel * 100 : null,
-          unsubRate:  totalDel > 0 ? (campUnsubs  + flowUnsubs)  / totalDel * 100 : null,
-          bounceRate: totalDel > 0 ? (campBounces + flowBounces) / totalDel * 100 : null,
-          spamRate:   totalDel > 0 ? (campSpam    + flowSpam)    / totalDel * 100 : null,
-        }
-      }
-
       const current = blend(campMonth, flowMonth)
       const prev    = blend(prevCampMonth, prevFlowMonth)
       const roi = monthlyCost && current?.revenue && monthlyCost > 0
         ? current.revenue / monthlyCost : null
 
-      // Fetch net subscriber growth using the same metric-aggregates approach as performance.ts
+      // Net subscriber growth
       let netGrowth: number | null = null
       let newSubscribers: number | null = null
       let unsubscribes: number | null = null
@@ -224,32 +228,26 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       if (brandMetrics) {
         const prevYear = parseInt(prevMonthKey.split('-')[0])
         const needsPrevYear = prevYear !== year
-
         const mkBody = (metricId: string, y: number) =>
           JSON.stringify({ account: brand.klaviyo_account, metricId, year: y, measurements: ['count'] })
-
         const [subCurRes, unsubCurRes, subPrevRes, unsubPrevRes] = await Promise.allSettled([
           fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, year) }),
           fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, year) }),
           needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, prevYear) }) : Promise.resolve(null),
           needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, prevYear) }) : Promise.resolve(null),
         ])
-
-        const subCurJson   = subCurRes.status   === 'fulfilled' && subCurRes.value?.ok   ? await subCurRes.value.json()   : null
-        const unsubCurJson = unsubCurRes.status  === 'fulfilled' && unsubCurRes.value?.ok  ? await unsubCurRes.value.json()  : null
-        const subPrevJson  = subPrevRes.status   === 'fulfilled' && subPrevRes.value?.ok   ? await subPrevRes.value.json()   : null
-        const unsubPrevJson= unsubPrevRes.status === 'fulfilled' && unsubPrevRes.value?.ok ? await unsubPrevRes.value.json() : null
-
+        const subCurJson    = subCurRes.status   === 'fulfilled' && subCurRes.value?.ok   ? await subCurRes.value.json()   : null
+        const unsubCurJson  = unsubCurRes.status  === 'fulfilled' && unsubCurRes.value?.ok ? await unsubCurRes.value.json() : null
+        const subPrevJson   = subPrevRes.status   === 'fulfilled' && subPrevRes.value?.ok  ? await subPrevRes.value.json()  : null
+        const unsubPrevJson = unsubPrevRes.status === 'fulfilled' && unsubPrevRes.value?.ok ? await unsubPrevRes.value.json() : null
         const subCurCounts   = parseMetricCount(subCurJson)
         const unsubCurCounts = parseMetricCount(unsubCurJson)
         const subPrevCounts   = needsPrevYear ? parseMetricCount(subPrevJson)   : subCurCounts
         const unsubPrevCounts = needsPrevYear ? parseMetricCount(unsubPrevJson) : unsubCurCounts
-
-        const curSub   = subCurCounts[month]     ?? null
-        const curUnsub = unsubCurCounts[month]   ?? null
+        const curSub   = subCurCounts[month]         ?? null
+        const curUnsub = unsubCurCounts[month]       ?? null
         const prvSub   = subPrevCounts[prevMonthKey]   ?? null
         const prvUnsub = unsubPrevCounts[prevMonthKey] ?? null
-
         if (curSub !== null && curUnsub !== null) {
           newSubscribers = curSub
           unsubscribes   = curUnsub
@@ -259,7 +257,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           prevNetGrowth = prvSub - prvUnsub
         }
       }
-      // Fetch YoY revenue — current year and 2 years back
+
+      // YoY revenue
       const yoyYears = [year - 2, year - 1, year]
       const yoyResults = await Promise.allSettled(
         yoyYears.flatMap(y => [
@@ -267,20 +266,16 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
         ])
       )
-
       const yoyRevenue = await Promise.all(yoyYears.map(async (y, i) => {
         const campR = yoyResults[i * 2]
         const flowR = yoyResults[i * 2 + 1]
         const campD = campR.status === 'fulfilled' && campR.value.ok ? await campR.value.json() : {}
         const flowD = flowR.status === 'fulfilled' && flowR.value.ok ? await flowR.value.json() : {}
-
         const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
         const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-
         const monthMap: Record<string, number> = {}
         for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
         for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-
         return {
           year: y,
           months: Object.entries(monthMap)
@@ -308,11 +303,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         prevNetGrowth,
         yoyRevenue,
       })
-
-      setLoading(false)
+    } finally {
+      setIsRefreshing(false)
     }
-    load()
-  }, [brandId, month, year, prevMonthKey, brandColor])
+  }
 
   function fmtCurrency(v: number | null | undefined) {
     if (v == null) return '—'
@@ -360,6 +354,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         console.error('Failed to save notes:', err)
       } else {
         setNotesSaved(true)
+        setSnapshotDate(new Date().toISOString())
         setTimeout(() => setNotesSaved(false), 2000)
       }
     } catch (e) {
@@ -411,6 +406,30 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               </div>
               <h1 className="text-4xl font-bold text-gray-900">{monthLabel(data.month)}</h1>
               <p className="text-sm text-gray-400 mt-1">Email Marketing Performance Report</p>
+              {/* Snapshot bar */}
+              <div className="flex items-center justify-between mt-3 px-1">
+                <p className="text-xs text-gray-400">
+                  {snapshotDate
+                    ? `Snapshot from ${new Date(snapshotDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                    : 'No snapshot saved yet'}
+                </p>
+                {isAuthed && (
+                  <button
+                    onClick={refresh}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors no-print ml-4"
+                  >
+                    {isRefreshing ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        Refreshing...
+                      </>
+                    ) : (
+                      <>↻ Refresh live data</>
+                    )}
+                  </button>
+                )}
+              </div>
               <select
                 value={month}
                 onChange={e => router.push(`/report/${brandId}/${e.target.value}`)}

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const [notesResult, brandResult, costResult, journalResult] = await Promise.all([
     supabase
       .from('report_notes')
-      .select('emails_published, flows_watching, key_focus, snapshot')
+      .select('emails_published, flows_watching, key_focus, snapshot, updated_at')
       .eq('brand_id', brandId)
       .eq('month', month)
       .limit(1),
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const journalEntries = journalResult.data ?? []
 
   return NextResponse.json({
-    notes: row ? { emails_published: row.emails_published, flows_watching: row.flows_watching, key_focus: row.key_focus } : null,
+    notes: row ? { emails_published: row.emails_published, flows_watching: row.flows_watching, key_focus: row.key_focus, updated_at: row.updated_at } : null,
     snapshot: row?.snapshot ?? null,
     brand,
     monthlyCost,

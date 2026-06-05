@@ -470,8 +470,9 @@ export async function getCurrentProfileId(): Promise<string> {
 }
 
 export async function deleteTopicComment(commentId: string) {
-  const { supabase, profile } = await getAuthedProfile()
-  const query = supabase
+  const { profile } = await getAuthedProfile()
+  const admin = createAdminClient()
+  const query = admin
     .from('planning_topic_comments')
     .delete()
     .eq('id', commentId)
@@ -483,8 +484,9 @@ export async function deleteTopicComment(commentId: string) {
 }
 
 export async function deleteDesignComment(commentId: string) {
-  const { supabase, profile } = await getAuthedProfile()
-  const query = supabase
+  const { profile } = await getAuthedProfile()
+  const admin = createAdminClient()
+  const query = admin
     .from('planning_design_comments')
     .delete()
     .eq('id', commentId)

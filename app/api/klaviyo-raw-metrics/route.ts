@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
           interval: 'month',
           measurements: [measurement],
           filter,
-          timezone: 'Australia/Sydney',
         },
       },
     })

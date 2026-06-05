@@ -390,7 +390,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
                     </div>
                     <p className="text-sm text-gray-700">{c.comment}</p>
                   </div>
-                  {currentProfileId && c.user_id === currentProfileId && (
+                  {(role === 'marketing' || (currentProfileId && c.user_id === currentProfileId)) && (
                     <button
                       onClick={() => startTransition(async () => { await deleteTopicComment(c.id) })}
                       title="Delete comment"

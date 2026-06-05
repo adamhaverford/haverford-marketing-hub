@@ -35,7 +35,7 @@ interface DesignReviewProps {
   role: 'marketing' | 'stakeholder'
 }
 
-function CommentThread({ comments, designId }: { comments: Comment[]; designId: string }) {
+function CommentThread({ comments, designId, role }: { comments: Comment[]; designId: string; role: 'marketing' | 'stakeholder' }) {
   const [commentText, setCommentText] = useState('')
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
@@ -72,7 +72,7 @@ function CommentThread({ comments, designId }: { comments: Comment[]; designId: 
                 </div>
                 <p className="text-sm text-gray-700">{c.comment}</p>
               </div>
-              {currentProfileId && c.user_id === currentProfileId && (
+              {(role === 'marketing' || (currentProfileId && c.user_id === currentProfileId)) && (
                 <button
                   onClick={() => startTransition(async () => { await deleteDesignComment(c.id) })}
                   title="Delete comment"
@@ -337,7 +337,7 @@ function DesignCard({ design, role }: { design: Design; role: 'marketing' | 'sta
 
       {showComments && (
         <div className="mt-3 pt-3 border-t border-gray-100">
-          <CommentThread comments={design.comments} designId={design.id} />
+          <CommentThread comments={design.comments} designId={design.id} role={role} />
         </div>
       )}
 

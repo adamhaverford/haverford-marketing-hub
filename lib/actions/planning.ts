@@ -471,21 +471,27 @@ export async function getCurrentProfileId(): Promise<string> {
 
 export async function deleteTopicComment(commentId: string) {
   const { supabase, profile } = await getAuthedProfile()
-  await supabase
+  const query = supabase
     .from('planning_topic_comments')
     .delete()
     .eq('id', commentId)
-    .eq('user_id', profile.id)
+  if (profile.role !== 'marketing') {
+    query.eq('user_id', profile.id)
+  }
+  await query
   revalidatePath('/planning', 'layout')
 }
 
 export async function deleteDesignComment(commentId: string) {
   const { supabase, profile } = await getAuthedProfile()
-  await supabase
+  const query = supabase
     .from('planning_design_comments')
     .delete()
     .eq('id', commentId)
-    .eq('user_id', profile.id)
+  if (profile.role !== 'marketing') {
+    query.eq('user_id', profile.id)
+  }
+  await query
   revalidatePath('/planning', 'layout')
 }
 

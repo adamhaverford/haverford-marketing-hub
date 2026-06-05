@@ -60,6 +60,22 @@ interface ReportData {
   prevNetGrowth: number | null
 }
 
+function parseMetricCount(json: unknown): Record<string, number> {
+  const result: Record<string, number> = {}
+  const attrs = (json as { data?: { attributes?: { dates?: string[]; data?: { measurements?: Record<string, number[]> }[] } } })?.data?.attributes
+  if (!attrs) return result
+  const dates: string[] = attrs.dates ?? []
+  const entries: { measurements?: Record<string, number[]> }[] = attrs.data ?? []
+  for (const entry of entries) {
+    const values: number[] = entry.measurements?.count ?? []
+    dates.forEach((date, i) => {
+      const key = date.substring(0, 7)
+      result[key] = (result[key] ?? 0) + (values[i] ?? 0)
+    })
+  }
+  return result
+}
+
 export default function ReportClient({ brandId, month, brandColor }: Props) {
   const router = useRouter()
   const [data, setData] = useState<ReportData | null>(null)
@@ -206,22 +222,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       if (brandMetrics) {
         const prevYear = parseInt(prevMonthKey.split('-')[0])
         const needsPrevYear = prevYear !== year
-
-        function parseMetricCount(json: unknown): Record<string, number> {
-          const result: Record<string, number> = {}
-          const attrs = (json as { data?: { attributes?: { dates?: string[]; data?: { measurements?: Record<string, number[]> }[] } } })?.data?.attributes
-          if (!attrs) return result
-          const dates: string[] = attrs.dates ?? []
-          const entries: { measurements?: Record<string, number[]> }[] = attrs.data ?? []
-          for (const entry of entries) {
-            const values: number[] = entry.measurements?.count ?? []
-            dates.forEach((date, i) => {
-              const key = date.substring(0, 7)
-              result[key] = (result[key] ?? 0) + (values[i] ?? 0)
-            })
-          }
-          return result
-        }
 
         const mkBody = (metricId: string, y: number) =>
           JSON.stringify({ account: brand.klaviyo_account, metricId, year: y, measurements: ['count'] })

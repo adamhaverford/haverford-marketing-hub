@@ -53,9 +53,6 @@ interface ReportData {
   campRows: CampaignRow[]
   flowRows: FlowRow[]
   journalEntries: { flow_name: string; category: string; description: string; outcome: string | null; changed_at: string }[]
-  rawUnsubRate: number | null
-  rawBounceRate: number | null
-  rawSpamRate: number | null
 }
 
 export default function ReportClient({ brandId, month, brandColor }: Props) {
@@ -144,26 +141,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
       const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
 
-      // Fetch accurate unsub/bounce/spam from raw metric aggregates
-      let rawUnsubRate: number | null = null
-      let rawBounceRate: number | null = null
-      let rawSpamRate: number | null = null
-      try {
-        const rawRes = await fetch('/api/klaviyo-raw-metrics', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ account: brand.klaviyo_account, year, month }),
-        })
-        if (rawRes.ok) {
-          const rawData = await rawRes.json()
-          rawUnsubRate  = rawData.unsubRate  ?? null
-          rawBounceRate = rawData.bounceRate ?? null
-          rawSpamRate   = rawData.spamRate   ?? null
-        }
-      } catch (e) {
-        console.error('Raw metrics fetch failed:', e)
-      }
-
       function findMonth(d: Record<string, unknown>, target: string): MonthRow | null {
         return (d.monthly as MonthRow[] ?? []).find(r => r.month === target) ?? null
       }
@@ -192,15 +169,21 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         const flowOpens  = flowDel > 0 ? (flow!.openRate  ?? 0) * flowDel / 100 : 0
         const campClicks = campDel > 0 ? (camp!.clickRate ?? 0) * campDel / 100 : 0
         const flowClicks = flowDel > 0 ? (flow!.clickRate ?? 0) * flowDel / 100 : 0
+        const campUnsubs  = campDel > 0 ? (camp!.unsubRate  ?? 0) * campDel / 100 : 0
+        const flowUnsubs  = flowDel > 0 ? (flow!.unsubRate  ?? 0) * flowDel / 100 : 0
+        const campBounces = campDel > 0 ? (camp!.bounceRate ?? 0) * campDel / 100 : 0
+        const flowBounces = flowDel > 0 ? (flow!.bounceRate ?? 0) * flowDel / 100 : 0
+        const campSpam    = campDel > 0 ? (camp!.spamRate   ?? 0) * campDel / 100 : 0
+        const flowSpam    = flowDel > 0 ? (flow!.spamRate   ?? 0) * flowDel / 100 : 0
         return {
           month:      camp?.month ?? flow?.month ?? '',
           recipients: totalDel,
           revenue:    (camp?.revenue ?? 0) + (flow?.revenue ?? 0),
           openRate:   totalDel > 0 ? (campOpens  + flowOpens)  / totalDel * 100 : null,
           clickRate:  totalDel > 0 ? (campClicks + flowClicks) / totalDel * 100 : null,
-          unsubRate:  camp?.unsubRate  ?? flow?.unsubRate  ?? null,
-          bounceRate: camp?.bounceRate ?? flow?.bounceRate ?? null,
-          spamRate:   camp?.spamRate   ?? flow?.spamRate   ?? null,
+          unsubRate:  totalDel > 0 ? (campUnsubs  + flowUnsubs)  / totalDel * 100 : null,
+          bounceRate: totalDel > 0 ? (campBounces + flowBounces) / totalDel * 100 : null,
+          spamRate:   totalDel > 0 ? (campSpam    + flowSpam)    / totalDel * 100 : null,
         }
       }
 
@@ -222,9 +205,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         campRows,
         flowRows,
         journalEntries,
-        rawUnsubRate,
-        rawBounceRate,
-        rawSpamRate,
       })
 
       setLoading(false)
@@ -408,9 +388,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           {[
             { label: 'Open Rate',   cur: data.current?.openRate,   prv: data.prev?.openRate,   good: true  },
             { label: 'Click Rate',  cur: data.current?.clickRate,  prv: data.prev?.clickRate,  good: true  },
-            { label: 'Unsub Rate',  cur: data.rawUnsubRate  ?? data.current?.unsubRate,  prv: data.prev?.unsubRate,  good: false },
-            { label: 'Bounce Rate', cur: data.rawBounceRate ?? data.current?.bounceRate, prv: data.prev?.bounceRate, good: false },
-            { label: 'Spam Rate',   cur: data.rawSpamRate   ?? data.current?.spamRate,   prv: data.prev?.spamRate,   good: false },
+            { label: 'Unsub Rate',  cur: data.current?.unsubRate,  prv: data.prev?.unsubRate,  good: false },
+            { label: 'Bounce Rate', cur: data.current?.bounceRate, prv: data.prev?.bounceRate, good: false },
+            { label: 'Spam Rate',   cur: data.current?.spamRate,   prv: data.prev?.spamRate,   good: false },
           ].map(m => (
             <div key={m.label} className="rounded-xl border border-gray-100 bg-white p-5">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">{m.label}</p>

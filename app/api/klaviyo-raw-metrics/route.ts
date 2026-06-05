@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
           interval: 'month',
           measurements: [measurement],
           filter,
+          page_size: 500,
         },
       },
     })

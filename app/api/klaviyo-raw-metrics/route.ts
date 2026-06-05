@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
     'revision': '2024-02-15',
   }
 
-  async function fetchMetric(metricId: string, measurement: 'count' | 'unique' = 'count'): Promise<number> {
+  async function fetchMetric(metricId: string, measurement: 'count' | 'unique' = 'count', attributedOnly = false): Promise<number> {
+    const filter = attributedOnly
+      ? `${dateFilter},not(equals($attributed_message,""))`
+      : dateFilter
     const body = JSON.stringify({
       data: {
         type: 'metric-aggregate',
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
           metric_id: metricId,
           interval: 'month',
           measurements: [measurement],
-          filter: dateFilter,
+          filter,
         },
       },
     })
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'unique')
+  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'count', true)
   await new Promise(r => setTimeout(r, 500))
   const bounceCount    = await fetchMetric(config.metrics.bounced, 'count')
   await new Promise(r => setTimeout(r, 500))

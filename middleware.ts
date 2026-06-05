@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  if (!user && pathname !== '/login' && !pathname.startsWith('/auth/confirm') && !pathname.startsWith('/report') && !pathname.startsWith('/api/report-data-public') && !pathname.startsWith('/api/report-notes')) {
+  if (!user && pathname !== '/login' && !pathname.startsWith('/auth/confirm') && !pathname.startsWith('/report') && !pathname.startsWith('/api/report-data-public') && !pathname.startsWith('/api/report-notes') && !pathname.startsWith('/api/klaviyo-raw-metrics')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

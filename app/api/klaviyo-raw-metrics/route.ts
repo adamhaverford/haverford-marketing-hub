@@ -44,11 +44,19 @@ export async function POST(req: NextRequest) {
         },
       },
     })
-    const res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', { method: 'POST', headers, body })
-    if (!res.ok) return 0
-    const data = await res.json()
-    const results = data?.data?.attributes?.dates ?? []
-    return results.reduce((sum: number, d: { values: number[] }) => sum + (d.values[0] ?? 0), 0)
+    try {
+      const res = await fetch('https://a.klaviyo.com/api/metric-aggregates/', { method: 'POST', headers, body })
+      if (!res.ok) return 0
+      const data = await res.json()
+      // Klaviyo returns results array with {date, values} objects
+      const results = data?.data?.attributes?.results ?? []
+      return results.reduce((sum: number, r: { measurements?: { count?: number[] } }) => {
+        const count = r?.measurements?.count?.[0] ?? 0
+        return sum + count
+      }, 0)
+    } catch {
+      return 0
+    }
   }
 
   const unsubCount     = await fetchMetric(config.metrics.unsubscribed)

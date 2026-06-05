@@ -260,7 +260,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         }
       }
       // Fetch YoY revenue — current year and 2 years back
-      const yoyYears = [year, year - 1, year - 2]
+      const yoyYears = [year - 2, year - 1, year]
       const yoyResults = await Promise.allSettled(
         yoyYears.flatMap(y => [
           fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
@@ -597,9 +597,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   width={40}
                 />
                 <Tooltip
-                  formatter={(value: unknown) => [
+                  formatter={(value: unknown, name: unknown) => [
                     `A$${Number(value).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-                    'Revenue',
+                    String(name),
                   ]}
                   contentStyle={{ borderRadius: '10px', border: '1px solid #F3F4F6', fontSize: '12px' }}
                 />
@@ -608,7 +608,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   <Bar
                     key={yearData.year}
                     dataKey={String(yearData.year)}
-                    fill={i === 0 ? color : i === 1 ? '#94A3B8' : '#CBD5E1'}
+                    fill={i === 2 ? color : i === 1 ? '#94A3B8' : '#CBD5E1'}
                     radius={[3, 3, 0, 0]}
                   />
                 ))}

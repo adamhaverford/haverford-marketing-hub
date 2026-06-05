@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { KLAVIYO_BRAND_CONFIG } from '@/lib/klaviyo-config'
 
+export const maxDuration = 30
+
 const ACCOUNT_KEY_MAP: Record<string, string | undefined> = {
   'catnets-au':      process.env.KLAVIYO_API_KEY_CATNETS,
   'haverford':       process.env.KLAVIYO_API_KEY_HAVERFORD,
@@ -49,12 +51,13 @@ export async function POST(req: NextRequest) {
     return results.reduce((sum: number, d: { values: number[] }) => sum + (d.values[0] ?? 0), 0)
   }
 
-  const [unsubCount, bounceCount, spamCount, deliveredCount] = await Promise.all([
-    fetchMetric(config.metrics.unsubscribed),
-    fetchMetric(config.metrics.bounced),
-    fetchMetric(config.metrics.spam),
-    fetchMetric(config.metrics.received),
-  ])
+  const unsubCount     = await fetchMetric(config.metrics.unsubscribed)
+  await new Promise(r => setTimeout(r, 500))
+  const bounceCount    = await fetchMetric(config.metrics.bounced)
+  await new Promise(r => setTimeout(r, 500))
+  const spamCount      = await fetchMetric(config.metrics.spam)
+  await new Promise(r => setTimeout(r, 500))
+  const deliveredCount = await fetchMetric(config.metrics.received)
 
   const unsubRate  = deliveredCount > 0 ? (unsubCount  / deliveredCount) * 100 : null
   const bounceRate = deliveredCount > 0 ? (bounceCount / deliveredCount) * 100 : null

@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Share2, TrendingUp, TrendingDown } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import { KLAVIYO_BRAND_CONFIG } from '@/lib/klaviyo-config'
 
@@ -58,6 +59,7 @@ interface ReportData {
   newSubscribers: number | null
   unsubscribes: number | null
   prevNetGrowth: number | null
+  yoyRevenue: { year: number; months: { month: string; revenue: number }[] }[]
 }
 
 function parseMetricCount(json: unknown): Record<string, number> {
@@ -128,7 +130,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           })
         }
         if (snapshot) {
-          setData({ ...snapshot, brandColor: brand?.color ?? brandColor })
+          setData({ ...snapshot, brandColor: brand?.color ?? brandColor, yoyRevenue: snapshot.yoyRevenue ?? [] })
         }
         setLoading(false)
         return
@@ -257,6 +259,36 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           prevNetGrowth = prvSub - prvUnsub
         }
       }
+      // Fetch YoY revenue — current year and 2 years back
+      const yoyYears = [year, year - 1, year - 2]
+      const yoyResults = await Promise.allSettled(
+        yoyYears.flatMap(y => [
+          fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
+          fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
+        ])
+      )
+
+      const yoyRevenue = await Promise.all(yoyYears.map(async (y, i) => {
+        const campR = yoyResults[i * 2]
+        const flowR = yoyResults[i * 2 + 1]
+        const campD = campR.status === 'fulfilled' && campR.value.ok ? await campR.value.json() : {}
+        const flowD = flowR.status === 'fulfilled' && flowR.value.ok ? await flowR.value.json() : {}
+
+        const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
+        const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+
+        const monthMap: Record<string, number> = {}
+        for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+        for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+
+        return {
+          year: y,
+          months: Object.entries(monthMap)
+            .map(([month, revenue]) => ({ month, revenue }))
+            .sort((a, b) => a.month.localeCompare(b.month)),
+        }
+      }))
+
       setData({
         brandName:       brand.name,
         brandColor:      brand.color ?? brandColor,
@@ -274,6 +306,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         newSubscribers,
         unsubscribes,
         prevNetGrowth,
+        yoyRevenue,
       })
 
       setLoading(false)
@@ -525,6 +558,62 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                 </div>
               )
             })()}
+          </div>
+        )}
+
+        {/* YoY revenue chart */}
+        {data.yoyRevenue && data.yoyRevenue.length > 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-5">
+              Revenue — Year on Year
+            </h2>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={(() => {
+                  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                  return monthNames.map((name, i) => {
+                    const monthNum = String(i + 1).padStart(2, '0')
+                    const entry: Record<string, string | number> = { month: name }
+                    for (const yearData of data.yoyRevenue) {
+                      const found = yearData.months.find(m => m.month.endsWith(`-${monthNum}`))
+                      entry[String(yearData.year)] = found?.revenue ?? 0
+                    }
+                    return entry
+                  })
+                })()}
+                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(v: number) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+                <Tooltip
+                  formatter={(value: unknown) => [
+                    `A$${Number(value).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+                    'Revenue',
+                  ]}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #F3F4F6', fontSize: '12px' }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '12px' }} />
+                {data.yoyRevenue.map((yearData, i) => (
+                  <Bar
+                    key={yearData.year}
+                    dataKey={String(yearData.year)}
+                    fill={i === 0 ? color : i === 1 ? '#94A3B8' : '#CBD5E1'}
+                    radius={[3, 3, 0, 0]}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
 

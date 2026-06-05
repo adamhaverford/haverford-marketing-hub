@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
           interval: 'month',
           measurements: [measurement],
           filter,
+          timezone: 'Australia/Sydney',
         },
       },
     })
@@ -65,13 +66,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'count', false)
+  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'unique', false)
   await new Promise(r => setTimeout(r, 500))
-  const bounceCount    = await fetchMetric(config.metrics.bounced, 'count')
+  const bounceCount    = await fetchMetric(config.metrics.bounced, 'count', false)
   await new Promise(r => setTimeout(r, 500))
-  const spamCount      = await fetchMetric(config.metrics.spam, 'unique')
+  const spamCount      = await fetchMetric(config.metrics.spam, 'unique', false)
   await new Promise(r => setTimeout(r, 500))
-  const deliveredCount = await fetchMetric(config.metrics.received, 'count')
+  const deliveredCount = await fetchMetric(config.metrics.received, 'count', false)
 
   const unsubRate  = deliveredCount > 0 ? (unsubCount  / deliveredCount) * 100 : null
   const bounceRate = deliveredCount > 0 ? (bounceCount / deliveredCount) * 100 : null

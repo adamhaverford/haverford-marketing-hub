@@ -53,6 +53,10 @@ interface ReportData {
   campRows: CampaignRow[]
   flowRows: FlowRow[]
   journalEntries: { flow_name: string; category: string; description: string; outcome: string | null; changed_at: string }[]
+  netGrowth: number | null
+  newSubscribers: number | null
+  unsubscribes: number | null
+  prevNetGrowth: number | null
 }
 
 export default function ReportClient({ brandId, month, brandColor }: Props) {
@@ -192,6 +196,25 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const roi = monthlyCost && current?.revenue && monthlyCost > 0
         ? current.revenue / monthlyCost : null
 
+      // Fetch net subscriber growth for current and prev months
+      let netGrowth: number | null = null
+      let newSubscribers: number | null = null
+      let unsubscribes: number | null = null
+      let prevNetGrowth: number | null = null
+      const [curSubRes, prevSubRes] = await Promise.allSettled([
+        fetch('/api/klaviyo-net-subscribers', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+        fetch('/api/klaviyo-net-subscribers', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
+      ])
+      if (curSubRes.status === 'fulfilled' && curSubRes.value.ok) {
+        const d = await curSubRes.value.json()
+        netGrowth      = d.netGrowth      ?? null
+        newSubscribers = d.newSubscribers ?? null
+        unsubscribes   = d.unsubscribes   ?? null
+      }
+      if (prevSubRes.status === 'fulfilled' && prevSubRes.value.ok) {
+        const d = await prevSubRes.value.json()
+        prevNetGrowth = d.netGrowth ?? null
+      }
       setData({
         brandName:       brand.name,
         brandColor:      brand.color ?? brandColor,
@@ -205,6 +228,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         campRows,
         flowRows,
         journalEntries,
+        netGrowth,
+        newSubscribers,
+        unsubscribes,
+        prevNetGrowth,
       })
 
       setLoading(false)
@@ -384,7 +411,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         </div>
 
         {/* Metrics row */}
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-6 gap-3">
           {[
             { label: 'Open Rate',   cur: data.current?.openRate,   prv: data.prev?.openRate,   good: true  },
             { label: 'Click Rate',  cur: data.current?.clickRate,  prv: data.prev?.clickRate,  good: true  },
@@ -401,6 +428,28 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               </div>
             </div>
           ))}
+          {/* Net subscriber growth */}
+          <div className="rounded-xl border border-gray-100 bg-white p-5">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Net Subs</p>
+            <p className={`text-2xl font-bold mb-1 ${data.netGrowth == null ? 'text-gray-900' : data.netGrowth >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {data.netGrowth == null ? '—' : `${data.netGrowth >= 0 ? '+' : ''}${data.netGrowth}`}
+            </p>
+            {data.newSubscribers != null && data.unsubscribes != null && (
+              <p className="text-xs text-gray-400 mb-1">+{data.newSubscribers} / −{data.unsubscribes}</p>
+            )}
+            <div className="flex items-center gap-1">
+              {data.netGrowth != null && data.prevNetGrowth != null && (
+                data.netGrowth >= data.prevNetGrowth
+                  ? <TrendingUp className="w-4 h-4 text-green-500" />
+                  : <TrendingDown className="w-4 h-4 text-red-500" />
+              )}
+              <span className="text-xs text-gray-400">
+                {data.netGrowth != null && data.prevNetGrowth != null
+                  ? `${data.netGrowth >= data.prevNetGrowth ? '+' : ''}${data.netGrowth - data.prevNetGrowth} vs last month`
+                  : 'No prior data'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Revenue breakdown */}

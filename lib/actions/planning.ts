@@ -464,6 +464,31 @@ export async function addDesignComment(designId: string, comment: string, mentio
   revalidatePath('/dashboard')
 }
 
+export async function getCurrentProfileId(): Promise<string> {
+  const { profile } = await getAuthedProfile()
+  return profile.id
+}
+
+export async function deleteTopicComment(commentId: string) {
+  const { supabase, profile } = await getAuthedProfile()
+  await supabase
+    .from('planning_topic_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', profile.id)
+  revalidatePath('/planning', 'layout')
+}
+
+export async function deleteDesignComment(commentId: string) {
+  const { supabase, profile } = await getAuthedProfile()
+  await supabase
+    .from('planning_design_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', profile.id)
+  revalidatePath('/planning', 'layout')
+}
+
 export async function recordNotificationClick(entityId: string, entityType: 'topic' | 'design') {
   const { supabase, profile } = await getAuthedProfile()
 

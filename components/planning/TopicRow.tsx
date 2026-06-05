@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition, useRef } from 'react'
 import { Check, X, MessageCircle, ChevronDown, ChevronUp, Pencil, Trash2, AlertTriangle, GripVertical } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { setTopicStatus, addTopicComment, updateTopic, deleteTopic, getProfiles } from '@/lib/actions/planning'
+import { setTopicStatus, addTopicComment, updateTopic, deleteTopic, getProfiles, getCurrentProfileId, deleteTopicComment } from '@/lib/actions/planning'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 import MentionTextarea from './MentionTextarea'
 
@@ -12,6 +12,7 @@ interface Comment {
   id: string
   comment: string
   created_at: string
+  user_id: string
   profiles: { full_name: string | null } | null
 }
 
@@ -41,6 +42,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
   const [commentText, setCommentText] = useState('')
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
+  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null)
   const [declineReason, setDeclineReason] = useState('')
   const [showDeclineInput, setShowDeclineInput] = useState(false)
   const [highlighted, setHighlighted] = useState(false)
@@ -54,6 +56,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
 
   useEffect(() => {
     getProfiles().then(setProfiles).catch(() => {})
+    getCurrentProfileId().then(setCurrentProfileId).catch(() => {})
   }, [])
 
   const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortable({ id: topic.id })
@@ -376,7 +379,7 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
           ) : (
             <div className="space-y-2">
               {topic.comments.map(c => (
-                <div key={c.id} className="flex gap-2">
+                <div key={c.id} className="flex gap-2 group/comment">
                   <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
                     {(c.profiles?.full_name ?? 'U').charAt(0).toUpperCase()}
                   </div>
@@ -387,6 +390,15 @@ export default function TopicRow({ topic, role, number, onDelete }: TopicRowProp
                     </div>
                     <p className="text-sm text-gray-700">{c.comment}</p>
                   </div>
+                  {currentProfileId && c.user_id === currentProfileId && (
+                    <button
+                      onClick={() => startTransition(async () => { await deleteTopicComment(c.id) })}
+                      title="Delete comment"
+                      className="opacity-0 group-hover/comment:opacity-100 transition-opacity self-start mt-1 text-gray-300 hover:text-red-400"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

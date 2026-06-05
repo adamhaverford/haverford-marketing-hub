@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from 'react'
 import { Upload, Check, X, MessageCircle, ChevronDown, ChevronUp, Image as ImageIcon, FileText, Trash2 } from 'lucide-react'
-import { setDesignStatus, addDesignComment, uploadDesign, deleteDesign, getProfiles } from '@/lib/actions/planning'
+import { setDesignStatus, addDesignComment, uploadDesign, deleteDesign, getProfiles, getCurrentProfileId, deleteDesignComment } from '@/lib/actions/planning'
 import { createClient } from '@/lib/supabase/client'
 import { timeAgo, formatDatetime } from '@/lib/utils'
 import MentionTextarea from './MentionTextarea'
@@ -11,6 +11,7 @@ interface Comment {
   id: string
   comment: string
   created_at: string
+  user_id: string
   profiles: { full_name: string | null } | null
 }
 
@@ -38,10 +39,12 @@ function CommentThread({ comments, designId }: { comments: Comment[]; designId: 
   const [commentText, setCommentText] = useState('')
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string }[]>([])
+  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     getProfiles().then(setProfiles).catch(() => {})
+    getCurrentProfileId().then(setCurrentProfileId).catch(() => {})
   }, [])
 
   function handleAddComment() {
@@ -58,7 +61,7 @@ function CommentThread({ comments, designId }: { comments: Comment[]; designId: 
       {comments.length > 0 && (
         <div className="space-y-2">
           {comments.map(c => (
-            <div key={c.id} className="flex gap-2">
+            <div key={c.id} className="flex gap-2 group/comment">
               <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 flex-shrink-0">
                 {(c.profiles?.full_name ?? 'U').charAt(0).toUpperCase()}
               </div>
@@ -69,6 +72,15 @@ function CommentThread({ comments, designId }: { comments: Comment[]; designId: 
                 </div>
                 <p className="text-sm text-gray-700">{c.comment}</p>
               </div>
+              {currentProfileId && c.user_id === currentProfileId && (
+                <button
+                  onClick={() => startTransition(async () => { await deleteDesignComment(c.id) })}
+                  title="Delete comment"
+                  className="opacity-0 group-hover/comment:opacity-100 transition-opacity self-start mt-1 text-gray-300 hover:text-red-400"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
             </div>
           ))}
         </div>

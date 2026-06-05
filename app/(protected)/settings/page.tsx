@@ -24,5 +24,5 @@ export default async function SettingsPage() {
 
   const inviteEnabled = !!process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  return <SettingsClient brands={brands ?? []} users={users ?? []} inviteEnabled={inviteEnabled} />
+  return <SettingsClient brands={brands ?? []} users={users ?? []} inviteEnabled={inviteEnabled} userId={user.id} />
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/actions/users'
 import { Edit2, Plus, X, Users, Tag, Check } from 'lucide-react'
@@ -27,6 +27,7 @@ interface Props {
   brands: Brand[]
   users: UserProfile[]
   inviteEnabled: boolean
+  userId: string
 }
 
 const PRESET_COLORS = [
@@ -35,12 +36,21 @@ const PRESET_COLORS = [
   '#EC4899', '#14B8A6', '#84CC16', '#64748B',
 ]
 
-export default function SettingsClient({ brands: initialBrands, users: initialUsers, inviteEnabled }: Props) {
+export default function SettingsClient({ brands: initialBrands, users: initialUsers, inviteEnabled, userId }: Props) {
   const { addToast } = useToast()
   const supabase = createClient()
 
   const [brands, setBrands] = useState<Brand[]>(initialBrands)
   const [users, setUsers] = useState<UserProfile[]>(initialUsers)
+
+  const [myName, setMyName] = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const [savingName, setSavingName] = useState(false)
+
+  useEffect(() => {
+    supabase.from('profiles').select('full_name').eq('user_id', userId).single()
+      .then(({ data }) => setMyName(data?.full_name ?? ''))
+  }, [userId])
 
   // Brand modal state
   const [brandModal, setBrandModal] = useState<{ open: boolean; brand: Brand | null }>({
@@ -59,6 +69,15 @@ export default function SettingsClient({ brands: initialBrands, users: initialUs
   const [inviteModal, setInviteModal] = useState(false)
   const [inviteForm, setInviteForm] = useState({ email: '', full_name: '', role: 'marketing' })
   const [inviting, setInviting] = useState(false)
+
+  async function handleSaveName() {
+    if (!myName.trim()) return
+    setSavingName(true)
+    await supabase.from('profiles').update({ full_name: myName.trim() }).eq('user_id', userId)
+    setSavingName(false)
+    setEditingName(false)
+    addToast('Display name updated.')
+  }
 
   function openAddBrand() {
     setBrandForm({ name: '', description: '', color: '#1B2B4B', klaviyo_account_id: '' })
@@ -155,6 +174,51 @@ export default function SettingsClient({ brands: initialBrands, users: initialUs
         <h2 className="text-2xl font-bold text-gray-900 mb-1">Settings</h2>
         <p className="text-gray-500">Manage brands and users.</p>
       </div>
+
+      {/* ── My Profile ── */}
+      <section className="mb-10">
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">My Profile</h3>
+        <div className="rounded-2xl border border-gray-100 p-4">
+          <div className="flex items-center gap-3">
+            {editingName ? (
+              <>
+                <input
+                  value={myName}
+                  onChange={e => setMyName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  placeholder="Your display name"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveName}
+                  disabled={savingName || !myName.trim()}
+                  className="text-sm font-medium text-white px-3 py-2 rounded-lg disabled:opacity-50"
+                  style={{ backgroundColor: '#E8611A' }}
+                >
+                  {savingName ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditingName(false)}
+                  className="text-sm text-gray-400 hover:text-gray-600"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm text-gray-700 font-medium">{myName || 'No name set'}</span>
+                <button
+                  onClick={() => setEditingName(true)}
+                  className="text-xs text-orange-500 hover:text-orange-600"
+                >
+                  Edit
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* ── Brands ── */}
       <section className="mb-10">

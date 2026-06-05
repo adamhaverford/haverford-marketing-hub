@@ -132,6 +132,7 @@ export default async function MonthDetailPage({ params }: Props) {
           id: c.id,
           comment: c.comment,
           created_at: c.created_at,
+          user_id: c.user_id,
           profiles: c.profiles,
         })),
       }))
@@ -156,6 +157,7 @@ export default async function MonthDetailPage({ params }: Props) {
           id: c.id,
           comment: c.comment,
           created_at: c.created_at,
+          user_id: c.user_id,
           profiles: c.profiles,
         })),
       }))

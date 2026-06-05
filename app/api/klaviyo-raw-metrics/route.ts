@@ -32,14 +32,14 @@ export async function POST(req: NextRequest) {
     'revision': '2024-02-15',
   }
 
-  async function fetchMetric(metricId: string): Promise<number> {
+  async function fetchMetric(metricId: string, measurement: 'count' | 'unique' = 'count'): Promise<number> {
     const body = JSON.stringify({
       data: {
         type: 'metric-aggregate',
         attributes: {
           metric_id: metricId,
           interval: 'month',
-          measurements: ['count'],
+          measurements: [measurement],
           filter: dateFilter,
         },
       },
@@ -51,26 +51,24 @@ export async function POST(req: NextRequest) {
       const attrs = json?.data?.attributes
       if (!attrs) return 0
       const dates: string[] = attrs.dates ?? []
-      const entries: { measurements?: { count?: number[] } }[] = attrs.data ?? []
-      // Find the index of our target month in the dates array
+      const entries: { measurements?: Record<string, number[]> }[] = attrs.data ?? []
       const monthIdx = dates.findIndex((d: string) => d.startsWith(month))
       if (monthIdx === -1) return 0
-      // Sum across all entries for that month index
       return entries.reduce((sum, entry) => {
-        return sum + (entry.measurements?.count?.[monthIdx] ?? 0)
+        return sum + (entry.measurements?.[measurement]?.[monthIdx] ?? 0)
       }, 0)
     } catch {
       return 0
     }
   }
 
-  const unsubCount     = await fetchMetric(config.metrics.unsubscribed)
+  const unsubCount     = await fetchMetric(config.metrics.unsubscribed, 'unique')
   await new Promise(r => setTimeout(r, 500))
-  const bounceCount    = await fetchMetric(config.metrics.bounced)
+  const bounceCount    = await fetchMetric(config.metrics.bounced, 'count')
   await new Promise(r => setTimeout(r, 500))
-  const spamCount      = await fetchMetric(config.metrics.spam)
+  const spamCount      = await fetchMetric(config.metrics.spam, 'unique')
   await new Promise(r => setTimeout(r, 500))
-  const deliveredCount = await fetchMetric(config.metrics.received)
+  const deliveredCount = await fetchMetric(config.metrics.received, 'count')
 
   const unsubRate  = deliveredCount > 0 ? (unsubCount  / deliveredCount) * 100 : null
   const bounceRate = deliveredCount > 0 ? (bounceCount / deliveredCount) * 100 : null

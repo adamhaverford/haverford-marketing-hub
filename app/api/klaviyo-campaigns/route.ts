@@ -74,6 +74,7 @@ interface MonthlyRow {
   ctor: number | null
   unsubRate: number | null
   bounceRate: number | null
+  spamRate: number | null
   revenue: number
 }
 
@@ -279,7 +280,7 @@ export async function POST(req: NextRequest) {
   // ── 4. Aggregate into monthly rows ───────────────────────────
   const monthMap: Record<string, {
     recipients: number; opens: number; clicks: number
-    unsubs: number; bounces: number; delivered: number; revenue: number
+    unsubs: number; bounces: number; spam: number; delivered: number; revenue: number
   }> = {}
 
   for (const c of campaigns) {
@@ -287,15 +288,16 @@ export async function POST(req: NextRequest) {
     const mk    = toSydneyMonth(c.sentAt)
     const stats = statsMap[c.id] ?? {}
     if (!monthMap[mk]) {
-      monthMap[mk] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, delivered: 0, revenue: 0 }
+      monthMap[mk] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, spam: 0, delivered: 0, revenue: 0 }
     }
     const m = monthMap[mk]
     const del     = stats.delivered            ?? 0
     m.delivered  += del
-    m.bounces    += stats.bounced      ?? 0
-    m.opens      += stats.opens_unique        ?? 0
-    m.clicks     += stats.clicks_unique       ?? 0
-    m.unsubs     += stats.unsubscribes ?? 0
+    m.bounces    += stats.bounced              ?? 0
+    m.opens      += stats.opens_unique         ?? 0
+    m.clicks     += stats.clicks_unique        ?? 0
+    m.unsubs     += stats.unsubscribes         ?? 0
+    m.spam       += stats.spam_complaints      ?? 0
     // revenue_per_recipient × delivered = total revenue for this campaign
     m.revenue    += (stats.revenue_per_recipient ?? 0) * del
     m.recipients  = m.delivered + m.bounces
@@ -306,11 +308,12 @@ export async function POST(req: NextRequest) {
     .map(([month, m]) => ({
       month,
       recipients: m.recipients,
-      openRate:   pct(m.opens,  m.delivered),
-      clickRate:  pct(m.clicks, m.delivered),
-      ctor:       pct(m.clicks, m.opens),
-      unsubRate:  pct(m.unsubs, m.recipients),
+      openRate:   pct(m.opens,   m.delivered),
+      clickRate:  pct(m.clicks,  m.delivered),
+      ctor:       pct(m.clicks,  m.opens),
+      unsubRate:  pct(m.unsubs,  m.recipients),
       bounceRate: pct(m.bounces, m.recipients),
+      spamRate:   pct(m.spam,    m.recipients),
       revenue:    m.revenue,
     }))
 

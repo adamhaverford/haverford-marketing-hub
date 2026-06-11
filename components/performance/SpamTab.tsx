@@ -29,7 +29,7 @@ function SpamStatusBadge({ rate }: { rate: number | null }) {
 }
 
 export default function SpamTab({ data, year }: SpamTabProps) {
-  const activeData = data.filter(r => r.sent !== null)
+  const activeData = data.filter(r => r.recipients !== null)
   const dangerMonths  = activeData.filter(r => (r.spamRate ?? 0) > 0.1)
   const warningMonths = activeData.filter(r => (r.spamRate ?? 0) > 0.05 && (r.spamRate ?? 0) <= 0.1)
 
@@ -96,8 +96,7 @@ export default function SpamTab({ data, year }: SpamTabProps) {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/70">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Month</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Sent</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Spam Reports</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Delivered</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Spam Rate</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Unsub Rate</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Bounce Rate</th>
@@ -106,15 +105,14 @@ export default function SpamTab({ data, year }: SpamTabProps) {
             </thead>
             <tbody>
               {data.map(row => {
-                const hasData = row.sent !== null
+                const hasData = row.recipients !== null
                 return (
                   <tr
                     key={row.month}
                     className={`border-b border-gray-50 last:border-0 ${spamBg(row.spamRate)} ${!hasData ? 'opacity-40' : 'hover:bg-gray-50/30'}`}
                   >
                     <td className="px-4 py-3 font-semibold text-gray-700">{monthLabel(row.month)}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{fmtCount(row.sent)}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{fmtCount(row.spam)}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{fmtCount(row.recipients)}</td>
                     <td className={`px-4 py-3 text-right font-semibold ${spamColor(row.spamRate)}`}>{fmtRate(row.spamRate)}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{fmtRate(row.unsubRate)}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{fmtRate(row.bounceRate)}</td>

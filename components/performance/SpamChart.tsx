@@ -26,7 +26,7 @@ function barColor(rate: number | null): string {
 
 export default function SpamChart({ data }: SpamChartProps) {
   const chartData = data
-    .filter(r => r.sent !== null)
+    .filter(r => r.recipients !== null)
     .map(r => ({
       month: monthLabel(r.month),
       spamRate: r.spamRate,

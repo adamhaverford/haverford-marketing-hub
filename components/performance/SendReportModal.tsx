@@ -19,7 +19,7 @@ export default function SendReportModal({ brand, year, month, onClose }: SendRep
   const lines = [
     `📊 ${brand} Email Performance — ${label}`,
     '',
-    `Emails Sent: ${fmtCount(month.sent)}`,
+    `Delivered: ${fmtCount(month.recipients)}`,
     `Open Rate: ${fmtRate(month.openRate)}`,
     `Click Rate: ${fmtRate(month.clickRate)}`,
     `Click-to-Open Rate: ${fmtRate(month.ctor)}`,

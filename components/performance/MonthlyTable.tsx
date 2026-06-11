@@ -1,46 +1,37 @@
-import { MonthData, BlendedMonth, monthLabel, fmtRate, fmtCount, fmtCurrency } from '@/lib/performance'
+import { MonthData, monthLabel, fmtRate, fmtCount, fmtCurrency } from '@/lib/performance'
 
 interface MonthlyTableProps {
   data: MonthData[]
   currentMonth: string
-  blendedMonthly?: BlendedMonth[]
 }
 
-export default function MonthlyTable({ data, currentMonth, blendedMonthly = [] }: MonthlyTableProps) {
+export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) {
   const cols = [
-    { key: 'month',        label: 'Month',        align: 'left'  },
-    { key: 'sent',         label: 'Sent',          align: 'right' },
-    { key: 'openRate',     label: 'Open Rate',     align: 'right' },
-    { key: 'clickRate',    label: 'Click Rate',    align: 'right' },
-    { key: 'ctor',         label: 'CTOR',          align: 'right' },
-    { key: 'unsubRate',    label: 'Unsub',         align: 'right' },
-    { key: 'bounceRate',   label: 'Bounce',        align: 'right' },
-    { key: 'revenue',      label: 'Revenue',       align: 'right' },
-    { key: 'netSubscribers', label: 'Net Subs',      align: 'right' },
+    { key: 'month',          label: 'Month',      align: 'left'  },
+    { key: 'recipients',     label: 'Delivered',  align: 'right' },
+    { key: 'openRate',       label: 'Open Rate',  align: 'right' },
+    { key: 'clickRate',      label: 'Click Rate', align: 'right' },
+    { key: 'ctor',           label: 'CTOR',       align: 'right' },
+    { key: 'unsubRate',      label: 'Unsub',      align: 'right' },
+    { key: 'bounceRate',     label: 'Bounce',     align: 'right' },
+    { key: 'revenue',        label: 'Revenue',    align: 'right' },
+    { key: 'netSubscribers', label: 'Net Subs',   align: 'right' },
   ] as const
 
   function fmt(row: MonthData, key: typeof cols[number]['key']): string {
-    if (key === 'month')      return monthLabel(row.month)
-    if (key === 'sent')       return fmtCount(row.sent)
-    if (key === 'openRate') {
-      const b = blendedMonthly.find(m => m.month === row.month)
-      const rate = b && b.delivered > 0 ? (b.opensUnique / b.delivered) * 100 : row.openRate
-      return fmtRate(rate)
-    }
-    if (key === 'clickRate') {
-      const b = blendedMonthly.find(m => m.month === row.month)
-      const rate = b && b.delivered > 0 ? (b.clicksUnique / b.delivered) * 100 : row.clickRate
-      return fmtRate(rate)
-    }
-    if (key === 'ctor')       return fmtRate(row.ctor)
-    if (key === 'unsubRate')  return fmtRate(row.unsubRate)
-    if (key === 'bounceRate') return fmtRate(row.bounceRate)
-    if (key === 'revenue')    return fmtCurrency(row.revenue)
+    if (key === 'month')          return monthLabel(row.month)
+    if (key === 'recipients')     return fmtCount(row.recipients)
+    if (key === 'openRate')       return fmtRate(row.openRate)
+    if (key === 'clickRate')      return fmtRate(row.clickRate)
+    if (key === 'ctor')           return fmtRate(row.ctor)
+    if (key === 'unsubRate')      return fmtRate(row.unsubRate)
+    if (key === 'bounceRate')     return fmtRate(row.bounceRate)
+    if (key === 'revenue')        return fmtCurrency(row.revenue)
     if (key === 'netSubscribers') return fmtCount(row.netSubscribers)
     return '—'
   }
 
-  const activeRows = data.filter(r => r.sent !== null)
+  const activeRows = data.filter(r => r.recipients !== null)
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-gray-100">
@@ -60,7 +51,7 @@ export default function MonthlyTable({ data, currentMonth, blendedMonthly = [] }
         <tbody>
           {data.map(row => {
             const isCurrent = row.month === currentMonth
-            const hasData = row.sent !== null
+            const hasData = row.recipients !== null
             return (
               <tr
                 key={row.month}

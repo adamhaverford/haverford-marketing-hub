@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Share2, Pencil, Check, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { MonthData, BlendedMonth, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
+import { MonthData, fmtRate, fmtCount, fmtCurrency, monthLabel } from '@/lib/performance'
 import MetricCard from './MetricCard'
 import MonthlyTable from './MonthlyTable'
 import SendReportModal from './SendReportModal'
@@ -16,7 +16,6 @@ interface OverviewTabProps {
   brandId: string
   year: number
   klaviyoAccount?: string | null
-  blendedMonthly?: BlendedMonth[]
 }
 
 function trend(current: number | null, prev: number | null): 'up' | 'down' | 'flat' | null {
@@ -44,7 +43,7 @@ function trendLabel(prevMonth: MonthData | null, current: number | null, prevVal
   return pct !== null ? `vs ${monthLabel(prevMonth.month)}: ${pct}` : undefined
 }
 
-export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount, blendedMonthly = [] }: OverviewTabProps) {
+export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount }: OverviewTabProps) {
   const [reportMonth, setReportMonth] = useState<MonthData | null>(null)
   const [monthlyCost, setMonthlyCost] = useState<number | null>(null)
   const [editingCost, setEditingCost] = useState(false)
@@ -54,21 +53,15 @@ export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount
   const now = new Date()
   const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  const activeData = data.filter(r => r.sent !== null)
+  const activeData = data.filter(r => r.recipients !== null)
   const currentMonthData = data.find(r => r.month === currentKey)
   const featured = currentMonthData ?? activeData[activeData.length - 1] ?? null
   const prev = featured ? prevOf(activeData, featured) : null
 
-  // Blended open/click rates from campaign + flow monthly data
-  const blended = featured ? blendedMonthly.find(b => b.month === featured.month) ?? null : null
-  const blendedOpenRate  = blended && blended.delivered > 0 ? (blended.opensUnique  / blended.delivered) * 100 : null
-  const blendedClickRate = blended && blended.delivered > 0 ? (blended.clicksUnique / blended.delivered) * 100 : null
-  const blendedCtor      = blended && blended.opensUnique > 0 ? (blended.clicksUnique / blended.opensUnique) * 100 : null
-
-  const displayOpenRate  = blended ? blendedOpenRate  : featured?.openRate  ?? null
-  const displayClickRate = blended ? blendedClickRate : featured?.clickRate ?? null
-  const displayCtor      = blended ? blendedCtor      : featured?.ctor      ?? null
-  const displayDelivered = blended ? blended.delivered : featured?.sent ?? null
+  const displayOpenRate  = featured?.openRate  ?? null
+  const displayClickRate = featured?.clickRate ?? null
+  const displayCtor      = featured?.ctor      ?? null
+  const displayDelivered = featured?.recipients ?? null
 
   // ROI — last month
   const lastMonthKey = useMemo(() => {
@@ -275,7 +268,7 @@ export default function OverviewTab({ data, brand, brandId, year, klaviyoAccount
         <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
           All Months — {year}
         </h3>
-        <MonthlyTable data={data} currentMonth={currentKey} blendedMonthly={blendedMonthly} />
+        <MonthlyTable data={data} currentMonth={currentKey} />
       </div>
 
       {/* Campaign & Flow Breakdown accordion */}

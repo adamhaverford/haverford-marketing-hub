@@ -1,16 +1,10 @@
 import { KLAVIYO_BRAND_CONFIG } from './klaviyo-config'
 
 export interface MonthData {
-  month: string        // "2024-01"
-  sent: number | null
-  opened: number | null
-  clicked: number | null
-  spam: number | null
-  bounced: number | null
-  unsubscribed: number | null
+  month: string
+  recipients: number | null   // delivered + bounced, from Reporting API
   netSubscribers: number | null
   revenue: number | null
-  // Derived rates (null if no sent data)
   openRate: number | null
   clickRate: number | null
   ctor: number | null
@@ -19,15 +13,6 @@ export interface MonthData {
   spamRate: number | null
 }
 
-export interface BlendedMonth {
-  month: string
-  delivered: number
-  opensUnique: number
-  clicksUnique: number
-  revenue: number
-}
-
-// Parses the Klaviyo metric-aggregate API response into a month→value map
 function parseKlaviyoResponse(json: unknown, measurement: string): Record<string, number> {
   const result: Record<string, number> = {}
   const attrs = (json as { data?: { attributes?: { dates?: string[]; data?: { measurements?: Record<string, number[]> }[] } } })?.data?.attributes
@@ -39,7 +24,7 @@ function parseKlaviyoResponse(json: unknown, measurement: string): Record<string
   for (const entry of entries) {
     const values: number[] = entry.measurements?.[measurement] ?? []
     dates.forEach((date, i) => {
-      const monthKey = date.substring(0, 7) // "2024-01"
+      const monthKey = date.substring(0, 7)
       result[monthKey] = (result[monthKey] ?? 0) + (values[i] ?? 0)
     })
   }
@@ -47,115 +32,102 @@ function parseKlaviyoResponse(json: unknown, measurement: string): Record<string
   return result
 }
 
-async function fetchMetric(
-  account: string,
-  metricId: string,
-  year: number,
-  measurements: string[] = ['count'],
-  attributedOnly?: boolean,
-): Promise<{ count: Record<string, number>; unique: Record<string, number>; sumValue: Record<string, number> }> {
-  const res = await fetch('/api/klaviyo-metrics', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account, metricId, year, measurements, ...(attributedOnly && { attributedOnly }) }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error ?? `HTTP ${res.status}`)
-  }
-  const json = await res.json()
-  return {
-    count:    parseKlaviyoResponse(json, 'count'),
-    unique:   parseKlaviyoResponse(json, 'unique'),
-    sumValue: parseKlaviyoResponse(json, 'sum_value'),
-  }
-}
-
-function rate(numerator: number | null, denominator: number | null): number | null {
-  if (denominator === null || denominator === 0 || numerator === null) return null
-  return (numerator / denominator) * 100
-}
-
-const STAGGER_MS = 200
-
-async function fetchMetricStaggered(
-  account: string,
-  metricId: string,
-  year: number,
-  index: number,
-  measurements?: string[],
-  attributedOnly?: boolean,
-): Promise<{ count: Record<string, number>; unique: Record<string, number>; sumValue: Record<string, number> }> {
-  if (index > 0) await new Promise(r => setTimeout(r, index * STAGGER_MS))
-  return fetchMetric(account, metricId, year, measurements, attributedOnly)
-}
-
 export async function fetchPerformanceData(klaviyoAccount: string, year: number): Promise<MonthData[]> {
   const config = KLAVIYO_BRAND_CONFIG[klaviyoAccount]
   if (!config) throw new Error(`No Klaviyo config for account: ${klaviyoAccount}`)
 
-  const { metrics } = config
+  const headers = { 'Content-Type': 'application/json' }
 
-  const metricDefs: Array<[string, string[]]> = [
-    [metrics.received,     ['count']],
-    [metrics.opened,       ['unique']],
-    [metrics.clicked,      ['unique']],
-    [metrics.spam,         ['count']],
-    [metrics.bounced,      ['count']],
-    [metrics.unsubscribed, ['count']],
-    [metrics.subscribed,   ['count']],
-  ]
-
-  const [nonOrderResults, orders] = await Promise.all([
-    Promise.all(
-      metricDefs.map(([id, measures], i) =>
-        fetchMetricStaggered(klaviyoAccount, id, year, i, measures)
-      )
-    ),
-    // Email-attributed revenue only (excludes orders not attributed to an email send)
-    fetchMetricStaggered(klaviyoAccount, metrics.placedOrder, year, metricDefs.length, ['count', 'sum_value'], true),
+  // Reporting API for all engagement metrics; Metric Aggregates only for net subscribers
+  const [campResult, flowResult, subResult, unsubResult] = await Promise.allSettled([
+    fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year }) }),
+    fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year }) }),
+    fetch('/api/klaviyo-metrics', {
+      method: 'POST', headers,
+      body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.subscribed,   year, measurements: ['count'] }),
+    }),
+    fetch('/api/klaviyo-metrics', {
+      method: 'POST', headers,
+      body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.unsubscribed, year, measurements: ['count'] }),
+    }),
   ])
 
-  const [sent, opened, clicked, spam, bounced, unsubscribed, rawSubscribed] = nonOrderResults
+  const campJson  = campResult.status  === 'fulfilled' && campResult.value.ok   ? await campResult.value.json()  : {}
+  const flowJson  = flowResult.status  === 'fulfilled' && flowResult.value.ok   ? await flowResult.value.json()  : {}
+  const subJson   = subResult.status   === 'fulfilled' && subResult.value?.ok   ? await subResult.value.json()   : null
+  const unsubJson = unsubResult.status === 'fulfilled' && unsubResult.value?.ok ? await unsubResult.value.json() : null
+
+  const subCounts   = parseKlaviyoResponse(subJson,   'count')
+  const unsubCounts = parseKlaviyoResponse(unsubJson, 'count')
+
+  // Blend monthly data from campaigns and flows by reconstructing raw counts
+  // from rate × recipients, then re-deriving blended rates from combined totals.
+  interface MonthAccum {
+    recipients: number
+    opens: number; clicks: number
+    unsubs: number; bounces: number; spam: number
+    revenue: number
+  }
+
+  const monthMap: Record<string, MonthAccum> = {}
+
+  function absorb(entries: Array<{
+    month: string; recipients: number
+    openRate: number | null; clickRate: number | null
+    unsubRate: number | null; bounceRate: number | null; spamRate?: number | null
+    revenue: number
+  }>) {
+    for (const m of entries) {
+      if (!monthMap[m.month]) {
+        monthMap[m.month] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, spam: 0, revenue: 0 }
+      }
+      const acc = monthMap[m.month]
+      const r = m.recipients ?? 0
+      acc.recipients += r
+      acc.opens      += ((m.openRate   ?? 0) / 100) * r
+      acc.clicks     += ((m.clickRate  ?? 0) / 100) * r
+      acc.unsubs     += ((m.unsubRate  ?? 0) / 100) * r
+      acc.bounces    += ((m.bounceRate ?? 0) / 100) * r
+      acc.spam       += ((m.spamRate   ?? 0) / 100) * r
+      acc.revenue    += m.revenue ?? 0
+    }
+  }
+
+  absorb(campJson.monthly ?? [])
+  absorb(flowJson.monthly ?? [])
 
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {
     const key = `${year}-${String(m).padStart(2, '0')}`
-    const s   = sent.count[key]           ?? null
-    const o   = opened.unique[key]        ?? null
-    const cl  = clicked.unique[key]       ?? null
-    const sp  = spam.count[key]           ?? null
-    const bo  = bounced.count[key]        ?? null
-    const un  = unsubscribed.count[key]   ?? null
-    const su  = rawSubscribed.count[key]  ?? null
-    const re  = orders.sumValue[key]      ?? null
+    const acc = monthMap[key]
+    const sub   = subCounts[key]   ?? null
+    const unsub = unsubCounts[key] ?? null
 
-    // Treat 0-sent months as no data
-    const sentVal = s === 0 ? null : s
+    const rawNetSubs = sub !== null && unsub !== null ? sub - unsub : null
+    const netSubscribers = rawNetSubs === 0 ? null : rawNetSubs
 
-    // Klaviyo open/click rates use delivered (sent minus bounced) as denominator
-    const delivered = (sentVal !== null && bo !== null) ? sentVal - bo : sentVal
+    if (!acc || acc.recipients === 0) {
+      months.push({
+        month: key, recipients: null, revenue: null,
+        openRate: null, clickRate: null, ctor: null,
+        unsubRate: null, bounceRate: null, spamRate: null,
+        netSubscribers,
+      })
+      continue
+    }
 
-    const netSubs = (su === null || un === null)
-      ? null
-      : (su - un === 0 ? null : su - un)
-
+    const { recipients, opens, clicks, unsubs, bounces, spam, revenue } = acc
     months.push({
-      month:          key,
-      sent:           sentVal,
-      opened:         o,
-      clicked:        cl,
-      spam:           sp,
-      bounced:        bo,
-      unsubscribed:   un,
-      netSubscribers: netSubs,
-      revenue:        re,
-      openRate:     (o !== null && delivered !== null && o > delivered) ? null : rate(o, delivered),
-      clickRate:    (cl !== null && delivered !== null && cl > delivered) ? null : rate(cl, delivered),
-      ctor:         rate(cl, o),
-      unsubRate:    rate(un, sentVal),
-      bounceRate:   rate(bo, sentVal),
-      spamRate:     rate(sp, sentVal),
+      month: key,
+      recipients,
+      revenue:    revenue > 0 ? revenue : null,
+      openRate:   recipients > 0 ? (opens   / recipients) * 100 : null,
+      clickRate:  recipients > 0 ? (clicks  / recipients) * 100 : null,
+      ctor:       opens > 0      ? (clicks  / opens)      * 100 : null,
+      unsubRate:  recipients > 0 ? (unsubs  / recipients) * 100 : null,
+      bounceRate: recipients > 0 ? (bounces / recipients) * 100 : null,
+      spamRate:   recipients > 0 ? (spam    / recipients) * 100 : null,
+      netSubscribers,
     })
   }
 

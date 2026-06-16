@@ -232,10 +232,10 @@ export async function addTopic(data: {
   description: string | null
   section?: string | null
 }) {
-  const { supabase, profile } = await getAuthedProfile()
-  if (profile.role !== 'marketing') throw new Error('Unauthorized')
+  const { profile } = await getAuthedProfile()
+  const admin = createAdminClient()
 
-  const { error } = await supabase.from('planning_topics').insert({
+  const { error } = await admin.from('planning_topics').insert({
     brand_id: data.brand_id,
     month: data.month,
     type: data.type,

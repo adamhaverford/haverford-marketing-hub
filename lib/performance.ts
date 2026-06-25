@@ -96,6 +96,9 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
   absorb(campJson.monthly ?? [])
   absorb(flowJson.monthly ?? [])
 
+  console.log('[PERF] May campaigns raw:', JSON.stringify((campJson.monthly ?? []).find((m: {month: string}) => m.month === '2026-05')))
+  console.log('[PERF] May flows raw:', JSON.stringify((flowJson.monthly ?? []).find((m: {month: string}) => m.month === '2026-05')))
+
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {
     const key = `${year}-${String(m).padStart(2, '0')}`
@@ -130,6 +133,8 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
       netSubscribers,
     })
   }
+
+  console.log('[PERF] May blended result:', JSON.stringify(months.find(m => m.month === '2026-05')))
 
   return months
 }

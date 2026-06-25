@@ -214,7 +214,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
         .slice(0, 6)
 
+      console.log('[REPORT] campaigns raw:', JSON.stringify(campMonth))
+      console.log('[REPORT] flows raw:', JSON.stringify(flowMonth))
       const current = blend(campMonth, flowMonth)
+      console.log('[REPORT] blended result:', JSON.stringify(current))
       const prev    = blend(prevCampMonth, prevFlowMonth)
       const roi = monthlyCost && current?.revenue && monthlyCost > 0
         ? current.revenue / monthlyCost : null

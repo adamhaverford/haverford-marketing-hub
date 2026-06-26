@@ -259,23 +259,45 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       }
 
       // YoY revenue
+      // Campaigns: one call per year — the route follows Klaviyo pagination internally.
+      // Flows: one call per month per year — the flow-series-report endpoint paginates
+      // by result count (flow × month combinations), so a full-year call can drop months
+      // beyond the first page. Single-month calls return scalar stats in one page each.
       const yoyYears = [year - 2, year - 1, year]
-      const yoyResults = await Promise.allSettled(
-        yoyYears.flatMap(y => [
-          fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
-          fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) }),
-        ])
+      const yoyMonthKeys = yoyYears.flatMap(y =>
+        Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
       )
-      const yoyRevenue = await Promise.all(yoyYears.map(async (y, i) => {
-        const campR = yoyResults[i * 2]
-        const flowR = yoyResults[i * 2 + 1]
+
+      const [yoyCampResults, yoyFlowResults] = await Promise.all([
+        Promise.allSettled(
+          yoyYears.map(y =>
+            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) })
+          )
+        ),
+        Promise.allSettled(
+          yoyMonthKeys.map(mk =>
+            fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: parseInt(mk.split('-')[0]), month: mk }) })
+          )
+        ),
+      ])
+
+      const yoyRevenue = await Promise.all(yoyYears.map(async (y, yi) => {
+        const campR = yoyCampResults[yi]
         const campD = campR.status === 'fulfilled' && campR.value.ok ? await campR.value.json() : {}
-        const flowD = flowR.status === 'fulfilled' && flowR.value.ok ? await flowR.value.json() : {}
         const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
-        const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+
         const monthMap: Record<string, number> = {}
         for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-        for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+
+        for (let mi = 0; mi < 12; mi++) {
+          const flowR = yoyFlowResults[yi * 12 + mi]
+          if (flowR.status === 'fulfilled' && flowR.value.ok) {
+            const flowD = await flowR.value.json()
+            const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+            for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+          }
+        }
+
         return {
           year: y,
           months: Object.entries(monthMap)

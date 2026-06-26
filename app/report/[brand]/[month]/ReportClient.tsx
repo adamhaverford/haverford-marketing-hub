@@ -414,20 +414,25 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             if (yi > 0) await new Promise(r => setTimeout(r, 300))
             const y = yoyYears[yi]
             const monthKeys = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
-            const [campResult, ...flowResults] = await Promise.allSettled([
+            const [campResult] = await Promise.allSettled([
               fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y }) }),
-              ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y, month: mk }) })),
             ])
             const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
             const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
             const monthMap: Record<string, number> = {}
             for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            for (const flowR of flowResults) {
-              if (flowR.status === 'fulfilled' && flowR.value.ok) {
-                const flowD = await flowR.value.json()
-                const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-                for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-              }
+            // Flows: sequential with 200 ms gaps to avoid 429 rate limits
+            for (let mi = 0; mi < monthKeys.length; mi++) {
+              if (mi > 0) await new Promise(r => setTimeout(r, 200))
+              const mk = monthKeys[mi]
+              try {
+                const flowRes = await fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y, month: mk }) })
+                if (flowRes.ok) {
+                  const flowD = await flowRes.json()
+                  const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+                  for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+                }
+              } catch { /* skip failed month */ }
             }
             freshYoy.push({
               year: y,

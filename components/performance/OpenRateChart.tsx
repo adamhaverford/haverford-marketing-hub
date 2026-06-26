@@ -18,7 +18,7 @@ interface OpenRateChartProps {
 
 export default function OpenRateChart({ data }: OpenRateChartProps) {
   const chartData = data
-    .filter(r => r.sent !== null)
+    .filter(r => r.recipients !== null)
     .map(r => ({
       month: monthLabel(r.month),
       openRate: r.openRate,

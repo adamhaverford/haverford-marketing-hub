@@ -170,6 +170,45 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           journalEntries: journalEntries ?? snapshot.journalEntries ?? [],
         })
         setSnapshotDate(existingNotes?.updated_at ?? null)
+        setLoading(false)
+
+        // Background: fetch current-year revenue live and merge with snapshotted
+        // historical data so the YoY chart is always up to date without re-fetching
+        // all past years on every page load.
+        if (brand?.klaviyo_account) {
+          const headers = { 'Content-Type': 'application/json' }
+          const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+          const [campResult, ...flowResults] = await Promise.allSettled([
+            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+            ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month: mk }) })),
+          ])
+          const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
+          const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
+          const monthMap: Record<string, number> = {}
+          for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+          for (const flowR of flowResults) {
+            if (flowR.status === 'fulfilled' && flowR.value.ok) {
+              const flowD = await flowR.value.json()
+              const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+              for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+            }
+          }
+          const liveEntry = {
+            year,
+            months: Object.entries(monthMap)
+              .map(([m, revenue]) => ({ month: m, revenue }))
+              .sort((a, b) => a.month.localeCompare(b.month)),
+          }
+          setData(prev => {
+            if (!prev) return prev
+            const pastYears = (snapshot.yoyRevenue ?? []).filter((e: { year: number }) => e.year !== year)
+            return {
+              ...prev,
+              yoyRevenue: [...pastYears, liveEntry].sort((a: { year: number }, b: { year: number }) => a.year - b.year),
+            }
+          })
+        }
+        return
       }
 
       setLoading(false)
@@ -359,16 +398,58 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   async function saveNotes() {
     setSavingNotes(true)
     try {
+      const headers = { 'Content-Type': 'application/json' }
+
+      // Fetch complete YoY revenue for all years before saving so historical data
+      // is baked into the snapshot. load() only needs to refresh the current year live.
+      // Years are fetched sequentially with a 300 ms gap to avoid rate limiting.
+      let yoyRevenue: ReportData['yoyRevenue'] = data?.yoyRevenue ?? []
+      const infoRes = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
+      if (infoRes.ok) {
+        const { brand: b } = await infoRes.json()
+        if (b?.klaviyo_account) {
+          const yoyYears = [year - 2, year - 1, year]
+          const freshYoy: ReportData['yoyRevenue'] = []
+          for (let yi = 0; yi < yoyYears.length; yi++) {
+            if (yi > 0) await new Promise(r => setTimeout(r, 300))
+            const y = yoyYears[yi]
+            const monthKeys = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
+            const [campResult, ...flowResults] = await Promise.allSettled([
+              fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y }) }),
+              ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y, month: mk }) })),
+            ])
+            const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
+            const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
+            const monthMap: Record<string, number> = {}
+            for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+            for (const flowR of flowResults) {
+              if (flowR.status === 'fulfilled' && flowR.value.ok) {
+                const flowD = await flowR.value.json()
+                const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+                for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+              }
+            }
+            freshYoy.push({
+              year: y,
+              months: Object.entries(monthMap)
+                .map(([m, revenue]) => ({ month: m, revenue }))
+                .sort((a, b) => a.month.localeCompare(b.month)),
+            })
+          }
+          yoyRevenue = freshYoy
+        }
+      }
+
       const res = await fetch('/api/report-notes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           brandId,
           month,
           emails_published: notes.emails_published,
           flows_watching: notes.flows_watching,
           key_focus: notes.key_focus,
-          snapshot: data ?? null,
+          snapshot: data ? { ...data, yoyRevenue } : null,
         }),
       })
       if (!res.ok) {

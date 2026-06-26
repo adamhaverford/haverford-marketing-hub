@@ -310,16 +310,37 @@ export async function POST(req: NextRequest) {
 
       for (const r of seriesResults) {
         const stats = r.statistics
-        // Each stat value is an array — one entry per month in the timeframe
-        const deliveredArr = stats.delivered as unknown as number[]
-        if (!Array.isArray(deliveredArr)) continue
+        const deliveredRaw = stats.delivered as unknown
 
-        deliveredArr.forEach((_, idx) => {
-          // Derive the month key from startDate + idx months
-          const d = new Date(startDate)
-          d.setMonth(d.getMonth() + idx)
-          const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-
+        if (Array.isArray(deliveredRaw)) {
+          // Multi-month timeframe: Klaviyo returns each statistic as an array,
+          // one value per monthly interval. Derive the month key from startDate + index.
+          ;(deliveredRaw as number[]).forEach((_, idx) => {
+            const d = new Date(startDate)
+            d.setMonth(d.getMonth() + idx)
+            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+            if (!monthMap[monthKey]) {
+              monthMap[monthKey] = {
+                delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
+                unsubscribes: 0, spam_complaints: 0, total_revenue: 0, total_orders: 0,
+              }
+            }
+            const acc = monthMap[monthKey]
+            const del = (deliveredRaw as number[])[idx] ?? 0
+            acc.delivered       += del
+            acc.bounced         += ((stats.bounced               as unknown as number[])[idx] ?? 0)
+            acc.opens_unique    += ((stats.opens_unique          as unknown as number[])[idx] ?? 0)
+            acc.clicks_unique   += ((stats.clicks_unique         as unknown as number[])[idx] ?? 0)
+            acc.unsubscribes    += ((stats.unsubscribes          as unknown as number[])[idx] ?? 0)
+            acc.spam_complaints += ((stats.spam_complaints       as unknown as number[])[idx] ?? 0)
+            acc.total_revenue   += ((stats.revenue_per_recipient as unknown as number[])[idx] ?? 0) * del
+            acc.total_orders    += ((stats.conversion_rate       as unknown as number[])[idx] ?? 0) * del
+          })
+        } else if (typeof deliveredRaw === 'number') {
+          // Single-month timeframe: Klaviyo returns each statistic as a scalar.
+          // The month key comes from groupings.date ("2026-05-01" → "2026-05").
+          const monthKey = (r.groupings?.date ?? '').substring(0, 7)
+          if (!monthKey) continue
           if (!monthMap[monthKey]) {
             monthMap[monthKey] = {
               delivered: 0, bounced: 0, opens_unique: 0, clicks_unique: 0,
@@ -327,17 +348,18 @@ export async function POST(req: NextRequest) {
             }
           }
           const acc = monthMap[monthKey]
-          const del = (stats.delivered as unknown as number[])[idx] ?? 0
+          const del = deliveredRaw
           acc.delivered       += del
-          acc.bounced         += ((stats.bounced              as unknown as number[])[idx] ?? 0)
-          acc.opens_unique    += ((stats.opens_unique         as unknown as number[])[idx] ?? 0)
-          acc.clicks_unique   += ((stats.clicks_unique        as unknown as number[])[idx] ?? 0)
-          acc.unsubscribes    += ((stats.unsubscribes         as unknown as number[])[idx] ?? 0)
-          acc.spam_complaints += ((stats.spam_complaints      as unknown as number[])[idx] ?? 0)
-          acc.total_revenue   += ((stats.revenue_per_recipient as unknown as number[])[idx] ?? 0) * del
-          acc.total_orders    += ((stats.conversion_rate       as unknown as number[])[idx] ?? 0) * del
-        })
+          acc.bounced         += (stats.bounced               as unknown as number) ?? 0
+          acc.opens_unique    += (stats.opens_unique          as unknown as number) ?? 0
+          acc.clicks_unique   += (stats.clicks_unique         as unknown as number) ?? 0
+          acc.unsubscribes    += (stats.unsubscribes          as unknown as number) ?? 0
+          acc.spam_complaints += (stats.spam_complaints       as unknown as number) ?? 0
+          acc.total_revenue   += ((stats.revenue_per_recipient as unknown as number) ?? 0) * del
+          acc.total_orders    += ((stats.conversion_rate       as unknown as number) ?? 0) * del
+        }
       }
+      console.log('[flows series] monthMap keys after processing:', Object.keys(monthMap), '| May entry:', JSON.stringify(monthMap['2026-05'] ?? null))
     } else {
       const errText = await seriesRes.text()
       console.error(`flow-series-reports failed (${seriesRes.status}):`, errText)

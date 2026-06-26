@@ -37,23 +37,17 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
   if (!config) throw new Error(`No Klaviyo config for account: ${klaviyoAccount}`)
 
   const headers = { 'Content-Type': 'application/json' }
-  const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 
   // Kick off all fetches simultaneously.
-  // Flows: one call per month (matching Report page approach) so each request covers a
-  // single-month timeframe. The full-year flow-series-report response can be paginated
-  // for large accounts, and the flows route reads only the first page — meaning some
-  // flows' monthly data gets dropped. Single-month calls have far fewer results and
-  // fit in one page, matching what Klaviyo's UI and the Report page show.
-  const campPromise  = fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year }) })
-  const subPromise   = fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.subscribed,   year, measurements: ['count'] }) })
-  const unsubPromise = fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.unsubscribed, year, measurements: ['count'] }) })
-  const flowPromises = monthKeys.map(mk => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year, month: mk }) }))
-
-  const [campResult, subResult, unsubResult] = await Promise.allSettled([campPromise, subPromise, unsubPromise])
-  const flowResults = await Promise.allSettled(flowPromises)
+  const [campResult, flowResult, subResult, unsubResult] = await Promise.allSettled([
+    fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year }) }),
+    fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, year }) }),
+    fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.subscribed,   year, measurements: ['count'] }) }),
+    fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: JSON.stringify({ account: klaviyoAccount, metricId: config.metrics.unsubscribed, year, measurements: ['count'] }) }),
+  ])
 
   const campJson  = campResult.status  === 'fulfilled' && campResult.value.ok  ? await campResult.value.json()  : {}
+  const flowJson  = flowResult.status  === 'fulfilled' && flowResult.value.ok  ? await flowResult.value.json()  : {}
   const subJson   = subResult.status   === 'fulfilled' && subResult.value?.ok  ? await subResult.value.json()   : null
   const unsubJson = unsubResult.status === 'fulfilled' && unsubResult.value?.ok ? await unsubResult.value.json() : null
 
@@ -94,23 +88,7 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
   }
 
   absorb(campJson.monthly ?? [])
-
-  // Absorb per-month flow data: find the matching monthly entry from each single-month call
-  for (let i = 0; i < flowResults.length; i++) {
-    const result = flowResults[i]
-    const mk = monthKeys[i]
-    if (result.status === 'fulfilled' && result.value.ok) {
-      const json = await result.value.json()
-      const entry = (json.monthly as Array<{
-        month: string; recipients: number; openRate: number | null; clickRate: number | null
-        unsubRate: number | null; bounceRate: number | null; spamRate: number | null; revenue: number
-      }> ?? []).find(m => m.month === mk)
-      if (entry) absorb([entry])
-    }
-  }
-
-  console.log('[PERF] May campaigns raw:', JSON.stringify((campJson.monthly ?? []).find((m: {month: string}) => m.month === '2026-05')))
-  console.log('[PERF] May flows raw (from monthMap):', JSON.stringify(monthMap['2026-05']))
+  absorb(flowJson.monthly ?? [])
 
   const months: MonthData[] = []
   for (let m = 1; m <= 12; m++) {
@@ -146,8 +124,6 @@ export async function fetchPerformanceData(klaviyoAccount: string, year: number)
       netSubscribers,
     })
   }
-
-  console.log('[PERF] May blended result:', JSON.stringify(months.find(m => m.month === '2026-05')))
 
   return months
 }

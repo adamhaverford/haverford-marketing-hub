@@ -296,6 +296,7 @@ export async function POST(req: NextRequest) {
         },
       },
     })
+    console.log('[flows series] timeframe sent to Klaviyo:', { startDate, endDate, month: month ?? '(none)' })
     await new Promise(r => setTimeout(r, 2000))
     const seriesRes = await fetchWithRetry(
       'https://a.klaviyo.com/api/flow-series-reports/',
@@ -313,6 +314,7 @@ export async function POST(req: NextRequest) {
         const deliveredRaw = stats.delivered as unknown
 
         if (Array.isArray(deliveredRaw)) {
+          console.log('[flows series] path: ARRAY (multi-month) | groupings:', JSON.stringify(r.groupings), '| delivered length:', (deliveredRaw as number[]).length)
           // Multi-month timeframe: Klaviyo returns each statistic as an array,
           // one value per monthly interval. Derive the month key from startDate + index.
           ;(deliveredRaw as number[]).forEach((_, idx) => {
@@ -337,6 +339,7 @@ export async function POST(req: NextRequest) {
             acc.total_orders    += ((stats.conversion_rate       as unknown as number[])[idx] ?? 0) * del
           })
         } else if (typeof deliveredRaw === 'number') {
+          console.log('[flows series] path: SCALAR (single-month) | groupings:', JSON.stringify(r.groupings), '| delivered:', deliveredRaw)
           // Single-month timeframe: Klaviyo returns each statistic as a scalar.
           // The month key comes from groupings.date ("2026-05-01" → "2026-05").
           const monthKey = (r.groupings?.date ?? '').substring(0, 7)
@@ -359,7 +362,7 @@ export async function POST(req: NextRequest) {
           acc.total_orders    += ((stats.conversion_rate       as unknown as number) ?? 0) * del
         }
       }
-      console.log('[flows series] monthMap keys after processing:', Object.keys(monthMap), '| May entry:', JSON.stringify(monthMap['2026-05'] ?? null))
+      console.log('[flows series] monthMap keys after processing:', Object.keys(monthMap), '| month param:', month ?? '(none)', '| entry for month:', JSON.stringify(monthMap[month ?? ''] ?? null))
     } else {
       const errText = await seriesRes.text()
       console.error(`flow-series-reports failed (${seriesRes.status}):`, errText)

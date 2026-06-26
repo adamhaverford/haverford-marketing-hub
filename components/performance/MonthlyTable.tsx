@@ -71,7 +71,7 @@ export default function MonthlyTable({ data, currentMonth }: MonthlyTableProps) 
                         ? `font-semibold ${isCurrent ? 'text-orange-700' : 'text-gray-700'}`
                         : 'text-gray-600'
                     } ${
-                      c.key === 'sent' ? 'font-medium text-gray-900' : ''
+                      ''
                     }`}
                   >
                     {fmt(row, c.key)}

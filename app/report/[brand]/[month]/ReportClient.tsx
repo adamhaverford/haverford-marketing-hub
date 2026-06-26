@@ -402,7 +402,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
       // Fetch complete YoY revenue for all years before saving so historical data
       // is baked into the snapshot. load() only needs to refresh the current year live.
-      // Years are fetched sequentially with a 300 ms gap to avoid rate limiting.
+      // Years are fetched sequentially with a 500 ms gap to avoid rate limiting.
       let yoyRevenue: ReportData['yoyRevenue'] = data?.yoyRevenue ?? []
       const infoRes = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
       if (infoRes.ok) {
@@ -411,7 +411,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           const yoyYears = [year - 2, year - 1, year]
           const freshYoy: ReportData['yoyRevenue'] = []
           for (let yi = 0; yi < yoyYears.length; yi++) {
-            if (yi > 0) await new Promise(r => setTimeout(r, 300))
+            if (yi > 0) await new Promise(r => setTimeout(r, 500))
             const y = yoyYears[yi]
             const monthKeys = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
             const [campResult] = await Promise.allSettled([
@@ -421,9 +421,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
             const monthMap: Record<string, number> = {}
             for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            // Flows: sequential with 200 ms gaps to avoid 429 rate limits
+            // Flows: sequential with 500 ms gaps to avoid 429 rate limits
             for (let mi = 0; mi < monthKeys.length; mi++) {
-              if (mi > 0) await new Promise(r => setTimeout(r, 200))
+              if (mi > 0) await new Promise(r => setTimeout(r, 500))
               const mk = monthKeys[mi]
               try {
                 const flowRes = await fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y, month: mk }) })

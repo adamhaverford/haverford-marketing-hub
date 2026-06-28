@@ -409,6 +409,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         const { brand: b } = await infoRes.json()
         if (b?.klaviyo_account) {
           const yoyYears = [year - 2, year - 1, year]
+          console.log('[saveNotes] fetching years:', yoyYears, '| account:', b.klaviyo_account)
           const freshYoy: ReportData['yoyRevenue'] = []
           for (let yi = 0; yi < yoyYears.length; yi++) {
             if (yi > 0) await new Promise(r => setTimeout(r, 500))
@@ -419,9 +420,13 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             ])
             const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
             const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
+            const campTotalRevenue = campMonthly.reduce((sum, m) => sum + (m.revenue ?? 0), 0)
+            console.log(`[saveNotes] year ${y} campaigns: ${campMonthly.length} months, total revenue $${campTotalRevenue.toFixed(2)}, status: ${campResult.status === 'fulfilled' ? campResult.value.status : 'rejected'}`)
             const monthMap: Record<string, number> = {}
             for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
             // Flows: sequential with 500 ms gaps to avoid 429 rate limits
+            let flowTotalRevenue = 0
+            let flowMonthsWithData = 0
             for (let mi = 0; mi < monthKeys.length; mi++) {
               if (mi > 0) await new Promise(r => setTimeout(r, 500))
               const mk = monthKeys[mi]
@@ -430,10 +435,15 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                 if (flowRes.ok) {
                   const flowD = await flowRes.json()
                   const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-                  for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+                  for (const m of flowMonthly) {
+                    monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+                    flowTotalRevenue += m.revenue ?? 0
+                    if ((m.revenue ?? 0) > 0) flowMonthsWithData++
+                  }
                 }
               } catch { /* skip failed month */ }
             }
+            console.log(`[saveNotes] year ${y} flows: ${flowMonthsWithData} months with revenue, total flow revenue $${flowTotalRevenue.toFixed(2)}`)
             freshYoy.push({
               year: y,
               months: Object.entries(monthMap)

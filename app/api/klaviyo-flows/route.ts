@@ -143,9 +143,12 @@ export async function POST(req: NextRequest) {
   let startDate: string
   let endDate: string
   if (month) {
-    const [y, m] = (month as string).split('-').map(Number)
-    const nextYear  = m === 12 ? y + 1 : y
-    const nextMonth = m === 12 ? 1 : m + 1
+    // Derive timeframe entirely from the month string — the year param is ignored here.
+    const parts      = (month as string).split('-')
+    const monthYear  = parseInt(parts[0], 10)
+    const monthIndex = parseInt(parts[1], 10)
+    const nextYear   = monthIndex === 12 ? monthYear + 1 : monthYear
+    const nextMonth  = monthIndex === 12 ? 1 : monthIndex + 1
     startDate = `${month}-01T00:00:00`
     endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00`
   } else {

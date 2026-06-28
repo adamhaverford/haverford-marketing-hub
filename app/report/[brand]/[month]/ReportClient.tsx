@@ -414,36 +414,18 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           for (let yi = 0; yi < yoyYears.length; yi++) {
             if (yi > 0) await new Promise(r => setTimeout(r, 500))
             const y = yoyYears[yi]
-            const monthKeys = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
-            const [campResult] = await Promise.allSettled([
+            const [campResult, flowResult] = await Promise.allSettled([
               fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y }) }),
+              fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y }) }),
             ])
             const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
+            const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
             const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
-            const campTotalRevenue = campMonthly.reduce((sum, m) => sum + (m.revenue ?? 0), 0)
-            console.log(`[saveNotes] year ${y} campaigns: ${campMonthly.length} months, total revenue $${campTotalRevenue.toFixed(2)}, status: ${campResult.status === 'fulfilled' ? campResult.value.status : 'rejected'}`)
+            const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
+            console.log(`[saveNotes] year ${y} campaigns: ${campMonthly.length} months | flows: ${flowMonthly.length} months`)
             const monthMap: Record<string, number> = {}
             for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            // Flows: sequential with 500 ms gaps to avoid 429 rate limits
-            let flowTotalRevenue = 0
-            let flowMonthsWithData = 0
-            for (let mi = 0; mi < monthKeys.length; mi++) {
-              if (mi > 0) await new Promise(r => setTimeout(r, 500))
-              const mk = monthKeys[mi]
-              try {
-                const flowRes = await fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year: y, month: mk }) })
-                if (flowRes.ok) {
-                  const flowD = await flowRes.json()
-                  const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-                  for (const m of flowMonthly) {
-                    monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-                    flowTotalRevenue += m.revenue ?? 0
-                    if ((m.revenue ?? 0) > 0) flowMonthsWithData++
-                  }
-                }
-              } catch { /* skip failed month */ }
-            }
-            console.log(`[saveNotes] year ${y} flows: ${flowMonthsWithData} months with revenue, total flow revenue $${flowTotalRevenue.toFixed(2)}`)
+            for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
             freshYoy.push({
               year: y,
               months: Object.entries(monthMap)

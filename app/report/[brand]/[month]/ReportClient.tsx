@@ -334,23 +334,18 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           year: parseInt(y, 10),
           months: months.sort((a, b) => a.month.localeCompare(b.month)),
         }))
-        const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
-        const [liveCampResult, ...liveFlowResults] = await Promise.allSettled([
+        const [liveCampResult, liveFlowResult] = await Promise.allSettled([
           fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-          ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month: mk }) })),
+          fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
         ])
         const liveCampD = liveCampResult.status === 'fulfilled' && liveCampResult.value.ok ? await liveCampResult.value.json() : {}
+        const liveFlowD = liveFlowResult.status === 'fulfilled' && liveFlowResult.value.ok ? await liveFlowResult.value.json() : {}
         const liveMonthMap: Record<string, number> = {}
         for (const m of (liveCampD.monthly ?? []) as { month: string; revenue: number }[]) {
           liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
         }
-        for (const flowR of liveFlowResults) {
-          if (flowR.status === 'fulfilled' && flowR.value.ok) {
-            const fd = await flowR.value.json()
-            for (const m of (fd.monthly ?? []) as { month: string; revenue: number }[]) {
-              liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            }
-          }
+        for (const m of (liveFlowD.monthly ?? []) as { month: string; revenue: number }[]) {
+          liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
         }
         yoyRevenue = [...pastEntries, {
           year,

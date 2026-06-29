@@ -207,8 +207,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             if (staticRows) {
               const byYear: Record<number, { month: string; revenue: number }[]> = {}
               for (const row of staticRows) {
-                if (row.month < month) {
-                  const rowYear = parseInt(row.month.split('-')[0], 10)
+                const rowYear = parseInt(row.month.split('-')[0], 10)
+                if (rowYear < year) {
                   if (!byYear[rowYear]) byYear[rowYear] = []
                   byYear[rowYear].push(row)
                 }
@@ -309,8 +309,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       if (staticRows) {
         const byYear: Record<number, { month: string; revenue: number }[]> = {}
         for (const row of staticRows) {
-          if (row.month < month) {
-            const rowYear = parseInt(row.month.split('-')[0], 10)
+          const rowYear = parseInt(row.month.split('-')[0], 10)
+          if (rowYear < year) {
             if (!byYear[rowYear]) byYear[rowYear] = []
             byYear[rowYear].push(row)
           }
@@ -569,11 +569,13 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           const freshYoy: ReportData['yoyRevenue'] = []
 
           if (staticRows) {
-            // Months before the current report month (YYYY-MM string comparison is lexicographically correct).
+            // Past years only — current year is fetched live to avoid a duplicate entry.
+            // Current-year static entries (e.g. 2026 Jan–May) are used when this same
+            // report is viewed in a future year (e.g. a 2027 report).
             const byYear: Record<number, { month: string; revenue: number }[]> = {}
             for (const row of staticRows) {
-              if (row.month < month) {
-                const rowYear = parseInt(row.month.split('-')[0], 10)
+              const rowYear = parseInt(row.month.split('-')[0], 10)
+              if (rowYear < year) {
                 if (!byYear[rowYear]) byYear[rowYear] = []
                 byYear[rowYear].push(row)
               }

@@ -207,8 +207,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             if (staticRows) {
               const byYear: Record<number, { month: string; revenue: number }[]> = {}
               for (const row of staticRows) {
-                const rowYear = parseInt(row.month.split('-')[0], 10)
-                if (rowYear < year) {
+                if (row.month < month) {
+                  const rowYear = parseInt(row.month.split('-')[0], 10)
                   if (!byYear[rowYear]) byYear[rowYear] = []
                   byYear[rowYear].push(row)
                 }
@@ -431,11 +431,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           const freshYoy: ReportData['yoyRevenue'] = []
 
           if (staticRows) {
-            // Past years: group static rows by year (only years before current).
+            // Months before the current report month (YYYY-MM string comparison is lexicographically correct).
             const byYear: Record<number, { month: string; revenue: number }[]> = {}
             for (const row of staticRows) {
-              const rowYear = parseInt(row.month.split('-')[0], 10)
-              if (rowYear < year) {
+              if (row.month < month) {
+                const rowYear = parseInt(row.month.split('-')[0], 10)
                 if (!byYear[rowYear]) byYear[rowYear] = []
                 byYear[rowYear].push(row)
               }

@@ -269,7 +269,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
       const campRows: CampaignRow[] = (campData.campaigns ?? []).filter((c: CampaignRow) => {
         if (!c.sentAt) return false
-        return c.sentAt.startsWith(month)
+        return isInMonthAEST(c.sentAt, month)
       })
       const flowRows: FlowRow[] = [...(flowData.flows ?? [])]
         .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
@@ -427,7 +427,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
       const campRows: CampaignRow[] = (campData?.campaigns ?? []).filter((c: CampaignRow) => {
         if (!c.sentAt) return false
-        return c.sentAt.startsWith(month)
+        return isInMonthAEST(c.sentAt, month)
       })
 
       const flowRows: FlowRow[] = [...(flowData?.flows ?? [])]

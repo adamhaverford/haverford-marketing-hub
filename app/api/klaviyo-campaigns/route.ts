@@ -96,7 +96,7 @@ function toSydneyMonth(utcDateStr: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { account, year } = await req.json()
+  const { account, year, month } = await req.json()
 
   const apiKey = ACCOUNT_KEY_MAP[account]
   if (!apiKey) {
@@ -114,9 +114,29 @@ export async function POST(req: NextRequest) {
   const headers = makeHeaders(apiKey)
 
   // ── 1. Fetch all campaigns for the year (paginated) ──────────
-  const startDate = `${year}-01-01T00:00:00`
-  const endDate   = `${year + 1}-01-01T00:00:00`
-  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${year - 1}-12-01T00:00:00),less-than(scheduled_at,${endDate}))`
+  let startDate: string
+  let endDate: string
+
+  if (month) {
+    // Shift start back 14h (max AU offset) to capture campaigns sent in the previous
+    // UTC day that belong to the current AEST month (e.g. 2026-05-31T22:45 UTC = 2026-06-01 AEST).
+    const parts      = (month as string).split('-')
+    const monthYear  = parseInt(parts[0], 10)
+    const monthIndex = parseInt(parts[1], 10)
+    const startUTC   = new Date(Date.UTC(monthYear, monthIndex - 1, 1, 0, 0, 0))
+    startUTC.setUTCHours(startUTC.getUTCHours() - 14)
+    startDate = startUTC.toISOString().slice(0, 19)
+    const nextYear   = monthIndex === 12 ? monthYear + 1 : monthYear
+    const nextMonth  = monthIndex === 12 ? 1 : monthIndex + 1
+    endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00`
+  } else {
+    startDate = `${year}-01-01T00:00:00`
+    endDate   = `${year + 1}-01-01T00:00:00`
+  }
+
+  const listFilter = month
+    ? `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${startDate}),less-than(scheduled_at,${endDate}))`
+    : `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${year - 1}-12-01T00:00:00),less-than(scheduled_at,${endDate}))`
 
   const allCampaigns: RawCampaign[] = []
   let nextUrl: string | null =

@@ -59,6 +59,13 @@ const FRAMEWORK_SECTIONS = [
     placeholder: "e.g. Dave from Brisbane — 54\" roll cabinet + matching chest",
     tip: 'Mine the 70 photo reviews. Real garages convert.',
   },
+  {
+    id: 'misc',
+    label: '5. Misc',
+    description: 'Anything that doesn\'t fit the above sections — banners, offers, copy notes, etc.',
+    placeholder: "e.g. Add free shipping banner above hero",
+    tip: null,
+  },
 ] as const
 
 type SectionId = typeof FRAMEWORK_SECTIONS[number]['id']
@@ -74,7 +81,7 @@ interface Props {
 export default function JPTFrameworkSection({ brandId, month, topics, designs, role }: Props) {
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [openSections, setOpenSections] = useState<Set<SectionId>>(
-    new Set<SectionId>(['subject_line', 'hero', 'crosssell', 'tip', 'spotlight'])
+    new Set<SectionId>(['subject_line', 'hero', 'crosssell', 'tip', 'spotlight', 'misc'])
   )
   const [addingTo, setAddingTo] = useState<SectionId | null>(null)
   const [newTitle, setNewTitle] = useState('')

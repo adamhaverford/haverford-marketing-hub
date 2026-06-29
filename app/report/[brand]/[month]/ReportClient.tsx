@@ -427,6 +427,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         const { brand: b } = await infoRes.json()
         if (b?.klaviyo_account) {
           const staticRows = YOY_STATIC_REVENUE[b.klaviyo_account]
+          console.log('[saveNotes] klaviyo_account lookup key:', JSON.stringify(b.klaviyo_account), '| staticRows found:', staticRows ? staticRows.length : 'none')
           const freshYoy: ReportData['yoyRevenue'] = []
 
           if (staticRows) {
@@ -439,6 +440,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                 byYear[y].push(row)
               }
             }
+            console.log('[saveNotes] byYear after grouping (report year=', year, '):', JSON.stringify(Object.fromEntries(Object.entries(byYear).map(([y, ms]) => [y, ms.length]))))
             for (const [y, months] of Object.entries(byYear)) {
               freshYoy.push({
                 year: parseInt(y, 10),

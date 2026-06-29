@@ -377,35 +377,52 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       if (!brand?.klaviyo_account) return
 
       const headers = { 'Content-Type': 'application/json' }
-      const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: parseInt(prevMonthKey.split('-')[0]), month: prevMonthKey }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: parseInt(prevMonthKey.split('-')[0]), month: prevMonthKey }) }),
-      ])
+      const prevYear = parseInt(prevMonthKey.split('-')[0])
+      const needsPrevYear = prevYear !== year
 
-      const campData     = campRes.status     === 'fulfilled' && campRes.value.ok     ? await campRes.value.json()     : {}
-      const flowData     = flowRes.status     === 'fulfilled' && flowRes.value.ok     ? await flowRes.value.json()     : {}
-      const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
-      const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
+      // Single full-year call each for campaigns and flows — avoids 429s from
+      // the 39-call YoY fetch that was here before. Find the specific month after.
+      const yearFetches = [
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        needsPrevYear
+          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
+          : Promise.resolve(null),
+        needsPrevYear
+          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
+          : Promise.resolve(null),
+      ]
+      const yearResults = await Promise.allSettled(yearFetches)
 
-      const campMonth     = findMonth(campData, month)
-      const flowMonth     = findMonth(flowData, month)
-      const prevCampMonth = findMonth(prevCampData, prevMonthKey)
-      const prevFlowMonth = findMonth(prevFlowData, prevMonthKey)
+      const campData     = yearResults[0].status === 'fulfilled' && yearResults[0].value?.ok ? await yearResults[0].value.json() : null
+      const flowData     = yearResults[1].status === 'fulfilled' && yearResults[1].value?.ok ? await yearResults[1].value.json() : null
+      const prevCampData = needsPrevYear
+        ? (yearResults[2].status === 'fulfilled' && yearResults[2].value?.ok ? await yearResults[2].value.json() : null)
+        : campData
+      const prevFlowData = needsPrevYear
+        ? (yearResults[3].status === 'fulfilled' && yearResults[3].value?.ok ? await yearResults[3].value.json() : null)
+        : flowData
 
-      const campRows: CampaignRow[] = (campData.campaigns ?? []).filter((c: CampaignRow) => {
+      // If all primary fetches failed, keep existing state unchanged
+      if (!campData && !flowData) return
+
+      const campMonth     = campData     ? findMonth(campData,     month)        : null
+      const flowMonth     = flowData     ? findMonth(flowData,     month)        : null
+      const prevCampMonth = prevCampData ? findMonth(prevCampData, prevMonthKey) : null
+      const prevFlowMonth = prevFlowData ? findMonth(prevFlowData, prevMonthKey) : null
+
+      const campRows: CampaignRow[] = (campData?.campaigns ?? []).filter((c: CampaignRow) => {
         if (!c.sentAt) return false
         return c.sentAt.startsWith(month)
       })
 
-      const flowRows: FlowRow[] = [...(flowData.flows ?? [])]
+      const flowRows: FlowRow[] = [...(flowData?.flows ?? [])]
         .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
         .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
         .slice(0, 6)
 
-      const current = blend(campMonth, flowMonth)
-      const prev    = blend(prevCampMonth, prevFlowMonth)
+      const current    = blend(campMonth, flowMonth)
+      const prevBlend  = blend(prevCampMonth, prevFlowMonth)
       const roi = monthlyCost && current?.revenue && monthlyCost > 0
         ? current.revenue / monthlyCost : null
 
@@ -416,8 +433,6 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       let prevNetGrowth: number | null = null
       const brandMetrics = KLAVIYO_BRAND_CONFIG[brand.klaviyo_account]?.metrics
       if (brandMetrics) {
-        const prevYear = parseInt(prevMonthKey.split('-')[0])
-        const needsPrevYear = prevYear !== year
         const mkBody = (metricId: string, y: number) =>
           JSON.stringify({ account: brand.klaviyo_account, metricId, year: y, measurements: ['count'] })
         const [subCurRes, unsubCurRes, subPrevRes, unsubPrevRes] = await Promise.allSettled([
@@ -448,72 +463,25 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         }
       }
 
-      // YoY revenue
-      // Campaigns: one call per year — the route follows Klaviyo pagination internally.
-      // Flows: one call per month per year — the flow-series-report endpoint paginates
-      // by result count (flow × month combinations), so a full-year call can drop months
-      // beyond the first page. Single-month calls return scalar stats in one page each.
-      const yoyYears = [year - 2, year - 1, year]
-      const yoyMonthKeys = yoyYears.flatMap(y =>
-        Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
-      )
-
-      const [yoyCampResults, yoyFlowResults] = await Promise.all([
-        Promise.allSettled(
-          yoyYears.map(y =>
-            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: y }) })
-          )
-        ),
-        Promise.allSettled(
-          yoyMonthKeys.map(mk =>
-            fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: parseInt(mk.split('-')[0]), month: mk }) })
-          )
-        ),
-      ])
-
-      const yoyRevenue = await Promise.all(yoyYears.map(async (y, yi) => {
-        const campR = yoyCampResults[yi]
-        const campD = campR.status === 'fulfilled' && campR.value.ok ? await campR.value.json() : {}
-        const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
-
-        const monthMap: Record<string, number> = {}
-        for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-
-        for (let mi = 0; mi < 12; mi++) {
-          const flowR = yoyFlowResults[yi * 12 + mi]
-          if (flowR.status === 'fulfilled' && flowR.value.ok) {
-            const flowD = await flowR.value.json()
-            const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-            for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-          }
-        }
-
+      // Preserve yoyRevenue from existing state — refresh does not update the YoY chart.
+      setData(prevState => {
+        if (!prevState) return prevState
         return {
-          year: y,
-          months: Object.entries(monthMap)
-            .map(([month, revenue]) => ({ month, revenue }))
-            .sort((a, b) => a.month.localeCompare(b.month)),
+          ...prevState,
+          current,
+          prev:            prevBlend,
+          campaignRevenue: campMonth?.revenue ?? null,
+          flowRevenue:     flowMonth?.revenue ?? null,
+          monthlyCost,
+          roi,
+          campRows,
+          flowRows,
+          journalEntries,
+          netGrowth,
+          newSubscribers,
+          unsubscribes,
+          prevNetGrowth,
         }
-      }))
-
-      setData({
-        brandName:       brand.name,
-        brandColor:      brand.color ?? brandColor,
-        month,
-        current,
-        prev,
-        campaignRevenue: campMonth?.revenue ?? null,
-        flowRevenue:     flowMonth?.revenue ?? null,
-        monthlyCost,
-        roi,
-        campRows,
-        flowRows,
-        journalEntries,
-        netGrowth,
-        newSubscribers,
-        unsubscribes,
-        prevNetGrowth,
-        yoyRevenue,
       })
     } finally {
       setIsRefreshing(false)

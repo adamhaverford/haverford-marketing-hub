@@ -185,10 +185,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
           const campMonth = (campD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
           const flowMonth = (flowD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
-          const liveEntry = {
-            year,
-            months: [{ month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) }],
-          }
+          const liveRevenue = (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0)
           setData(prev => {
             if (!prev) return prev
             const staticRows = YOY_STATIC_REVENUE[brand.klaviyo_account]
@@ -208,6 +205,16 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               }))
             } else {
               pastEntries = (snapshot.yoyRevenue ?? []).filter((e: { year: number }) => e.year !== year)
+            }
+            // Current year: static months before the report month + live current month
+            const staticCurrentYear = staticRows
+              ? staticRows
+                  .filter(row => row.month.startsWith(`${year}-`) && row.month < month)
+                  .sort((a, b) => a.month.localeCompare(b.month))
+              : []
+            const liveEntry = {
+              year,
+              months: [...staticCurrentYear, { month, revenue: liveRevenue }],
             }
             const merged = [...pastEntries, liveEntry].sort((a: { year: number }, b: { year: number }) => a.year - b.year)
             console.log('[load] yoyRevenue after merge:', JSON.stringify(merged.map(e => ({ year: e.year, months: e.months.length }))))
@@ -577,7 +584,11 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               })
             })
 
-            // Current report month only — 2 calls instead of a full-year fetch.
+            // Current year: static months before the report month + live current month.
+            const staticCurrentYear = staticRows
+              .filter(row => row.month.startsWith(`${year}-`) && row.month < month)
+              .sort((a, b) => a.month.localeCompare(b.month))
+
             const [campResult, flowResult] = await Promise.allSettled([
               fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year, month }) }),
               fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year, month }) }),
@@ -588,7 +599,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             const flowMonth = (flowD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
             freshYoy.push({
               year,
-              months: [{ month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) }],
+              months: [
+                ...staticCurrentYear,
+                { month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) },
+              ],
             })
           } else {
             // Brand not in static data — live fetch for all years with rate-limit delay

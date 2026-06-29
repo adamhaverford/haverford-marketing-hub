@@ -183,7 +183,6 @@ export async function POST(req: NextRequest) {
             filter: flowFilter(batch),
             statistics: FLOW_STATISTICS,
             conversion_metric_id: config.metrics.placedOrder,
-            timezone: 'Australia/Sydney',
           },
         },
       })
@@ -297,7 +296,6 @@ export async function POST(req: NextRequest) {
           statistics: FLOW_STATISTICS,
           conversion_metric_id: config.metrics.placedOrder,
           interval: 'monthly',
-          timezone: 'Australia/Sydney',
         },
       },
     })

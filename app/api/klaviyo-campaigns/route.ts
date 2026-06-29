@@ -176,7 +176,6 @@ export async function POST(req: NextRequest) {
             filter: campaignFilter(batch),
             statistics: CAMPAIGN_STATISTICS,
             conversion_metric_id: config.metrics.placedOrder,
-            timezone: 'Australia/Sydney',
           },
         },
       })

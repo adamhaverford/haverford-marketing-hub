@@ -173,32 +173,21 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         setSnapshotDate(existingNotes?.updated_at ?? null)
         setLoading(false)
 
-        // Background: fetch current-year revenue live and merge with snapshotted
-        // historical data so the YoY chart is always up to date without re-fetching
-        // all past years on every page load.
+        // Background: fetch only the current report month live and merge with static
+        // past-year data. Two calls instead of 13 — avoids rate limiting.
         if (brand?.klaviyo_account) {
           const headers = { 'Content-Type': 'application/json' }
-          const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
-          const [campResult, ...flowResults] = await Promise.allSettled([
-            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-            ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month: mk }) })),
+          const [campResult, flowResult] = await Promise.allSettled([
+            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
+            fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
           ])
           const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
-          const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
-          const monthMap: Record<string, number> = {}
-          for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-          for (const flowR of flowResults) {
-            if (flowR.status === 'fulfilled' && flowR.value.ok) {
-              const flowD = await flowR.value.json()
-              const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-              for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            }
-          }
+          const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
+          const campMonth = (campD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
+          const flowMonth = (flowD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
           const liveEntry = {
             year,
-            months: Object.entries(monthMap)
-              .map(([m, revenue]) => ({ month: m, revenue }))
-              .sort((a, b) => a.month.localeCompare(b.month)),
+            months: [{ month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) }],
           }
           setData(prev => {
             if (!prev) return prev
@@ -588,23 +577,18 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               })
             })
 
-            // Current year: fetch live
+            // Current report month only — 2 calls instead of a full-year fetch.
             const [campResult, flowResult] = await Promise.allSettled([
-              fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year }) }),
-              fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year }) }),
+              fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year, month }) }),
+              fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: b.klaviyo_account, year, month }) }),
             ])
             const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
             const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
-            const campMonthly: { month: string; revenue: number }[] = campD.monthly ?? []
-            const flowMonthly: { month: string; revenue: number }[] = flowD.monthly ?? []
-            const monthMap: Record<string, number> = {}
-            for (const m of campMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
-            for (const m of flowMonthly) monthMap[m.month] = (monthMap[m.month] ?? 0) + (m.revenue ?? 0)
+            const campMonth = (campD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
+            const flowMonth = (flowD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
             freshYoy.push({
               year,
-              months: Object.entries(monthMap)
-                .map(([m, revenue]) => ({ month: m, revenue }))
-                .sort((a, b) => a.month.localeCompare(b.month)),
+              months: [{ month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) }],
             })
           } else {
             // Brand not in static data — live fetch for all years with rate-limit delay

@@ -220,10 +220,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             } else {
               pastEntries = (snapshot.yoyRevenue ?? []).filter((e: { year: number }) => e.year !== year)
             }
-            return {
-              ...prev,
-              yoyRevenue: [...pastEntries, liveEntry].sort((a: { year: number }, b: { year: number }) => a.year - b.year),
-            }
+            const merged = [...pastEntries, liveEntry].sort((a: { year: number }, b: { year: number }) => a.year - b.year)
+            console.log('[load] yoyRevenue after merge:', JSON.stringify(merged.map(e => ({ year: e.year, months: e.months.length }))))
+            return { ...prev, yoyRevenue: merged }
           })
         }
         return
@@ -494,6 +493,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           yoyRevenue = freshYoy.sort((a, b) => a.year - b.year)
         }
       }
+      console.log('[saveNotes] yoyRevenue being saved:', JSON.stringify(yoyRevenue.slice(0, 3)))
 
       const res = await fetch('/api/report-notes', {
         method: 'POST',

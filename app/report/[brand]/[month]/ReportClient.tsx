@@ -63,6 +63,25 @@ interface ReportData {
   yoyRevenue: { year: number; months: { month: string; revenue: number }[] }[]
 }
 
+function isInMonthAEST(sentAt: string, reportMonth: string): boolean {
+  const date = new Date(sentAt)
+
+  // Determine offset: AEDT (UTC+11) or AEST (UTC+10)
+  // AEDT runs from first Sunday in October to first Sunday in April
+  const year = date.getUTCFullYear()
+  const octFirst = new Date(Date.UTC(year, 9, 1))
+  const aedtStart = new Date(Date.UTC(year, 9, 1 + (7 - octFirst.getUTCDay()) % 7))
+  const aprFirst = new Date(Date.UTC(year, 3, 1))
+  const aedtEnd = new Date(Date.UTC(year, 3, 1 + (aprFirst.getUTCDay() === 0 ? 0 : 7 - aprFirst.getUTCDay()) % 7))
+
+  const isAEDT = date >= aedtStart || date < aedtEnd
+  const offsetHours = isAEDT ? 11 : 10
+
+  const aestDate = new Date(date.getTime() + offsetHours * 60 * 60 * 1000)
+  const aestMonth = `${aestDate.getUTCFullYear()}-${String(aestDate.getUTCMonth() + 1).padStart(2, '0')}`
+  return aestMonth === reportMonth
+}
+
 function parseMetricCount(json: unknown): Record<string, number> {
   const result: Record<string, number> = {}
   const attrs = (json as { data?: { attributes?: { dates?: string[]; data?: { measurements?: Record<string, number[]> }[] } } })?.data?.attributes
@@ -903,33 +922,38 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         )}
 
         {/* Campaigns table */}
-        {data.campRows.length > 0 && (
-          <div className="rounded-2xl border border-gray-100 bg-white p-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Campaigns This Month</h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-semibold text-gray-400 pb-2 pr-4">Campaign</th>
-                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Sent</th>
-                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Open Rate</th>
-                  <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Click Rate</th>
-                  <th className="text-right text-xs font-semibold text-gray-400 pb-2">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.campRows.map((c, i) => (
-                  <tr key={i} className="border-b border-gray-50 last:border-0">
-                    <td className="py-3 pr-4 font-medium text-gray-800 max-w-xs truncate">{c.name}</td>
-                    <td className="py-3 px-4 text-right text-gray-500">{c.recipients?.toLocaleString() ?? '—'}</td>
-                    <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.openRate)}</td>
-                    <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.clickRate)}</td>
-                    <td className="py-3 text-right font-semibold text-gray-800">{fmtCurrency(c.revenue)}</td>
+        {(() => {
+          const filteredCampRows = (data.campRows ?? []).filter(row =>
+            row.sentAt ? isInMonthAEST(row.sentAt, month) : true
+          )
+          return filteredCampRows.length > 0 ? (
+            <div className="rounded-2xl border border-gray-100 bg-white p-6">
+              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Campaigns This Month</h2>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-xs font-semibold text-gray-400 pb-2 pr-4">Campaign</th>
+                    <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Sent</th>
+                    <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Open Rate</th>
+                    <th className="text-right text-xs font-semibold text-gray-400 pb-2 px-4">Click Rate</th>
+                    <th className="text-right text-xs font-semibold text-gray-400 pb-2">Revenue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {filteredCampRows.map((c, i) => (
+                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                      <td className="py-3 pr-4 font-medium text-gray-800 max-w-xs truncate">{c.name}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{c.recipients?.toLocaleString() ?? '—'}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.openRate)}</td>
+                      <td className="py-3 px-4 text-right text-gray-500">{fmtRate(c.clickRate)}</td>
+                      <td className="py-3 text-right font-semibold text-gray-800">{fmtCurrency(c.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null
+        })()}
 
         {/* Top flows table */}
         {data.flowRows.length > 0 && (

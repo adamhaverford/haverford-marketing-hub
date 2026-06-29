@@ -150,7 +150,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       // Always load snapshot first for everyone
       const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
       if (!res.ok) { setLoading(false); return }
-      const { notes: existingNotes, snapshot, brand, journalEntries } = await res.json()
+      const { notes: existingNotes, snapshot, brand, journalEntries, monthlyCost } = await res.json()
 
       if (existingNotes) {
         setNotes({
@@ -228,6 +228,144 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         return
       }
 
+      // No snapshot — attempt live fetch so unpublished months still show data.
+      if (!brand?.klaviyo_account) { setLoading(false); return }
+
+      const headers = { 'Content-Type': 'application/json' }
+      const prevYear = parseInt(prevMonthKey.split('-')[0])
+      const needsPrevYear = prevYear !== year
+
+      const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) }),
+      ])
+
+      const campData     = campRes.status     === 'fulfilled' && campRes.value.ok     ? await campRes.value.json()     : {}
+      const flowData     = flowRes.status     === 'fulfilled' && flowRes.value.ok     ? await flowRes.value.json()     : {}
+      const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
+      const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
+
+      const campMonth     = findMonth(campData, month)
+      const flowMonth     = findMonth(flowData, month)
+      const prevCampMonth = findMonth(prevCampData, prevMonthKey)
+      const prevFlowMonth = findMonth(prevFlowData, prevMonthKey)
+
+      const campRows: CampaignRow[] = (campData.campaigns ?? []).filter((c: CampaignRow) => {
+        if (!c.sentAt) return false
+        return c.sentAt.startsWith(month)
+      })
+      const flowRows: FlowRow[] = [...(flowData.flows ?? [])]
+        .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
+        .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
+        .slice(0, 6)
+
+      const current = blend(campMonth, flowMonth)
+      const prev    = blend(prevCampMonth, prevFlowMonth)
+      const roi = monthlyCost && current?.revenue && monthlyCost > 0
+        ? current.revenue / monthlyCost : null
+
+      // Net subscriber growth
+      let netGrowth: number | null = null
+      let newSubscribers: number | null = null
+      let unsubscribes: number | null = null
+      let prevNetGrowth: number | null = null
+      const brandMetrics = KLAVIYO_BRAND_CONFIG[brand.klaviyo_account]?.metrics
+      if (brandMetrics) {
+        const mkBody = (metricId: string, y: number) =>
+          JSON.stringify({ account: brand.klaviyo_account, metricId, year: y, measurements: ['count'] })
+        const [subCurRes, unsubCurRes, subPrevRes, unsubPrevRes] = await Promise.allSettled([
+          fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, year) }),
+          fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, year) }),
+          needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.subscribed, prevYear) }) : Promise.resolve(null),
+          needsPrevYear ? fetch('/api/klaviyo-metrics', { method: 'POST', headers, body: mkBody(brandMetrics.unsubscribed, prevYear) }) : Promise.resolve(null),
+        ])
+        const subCurJson    = subCurRes.status   === 'fulfilled' && subCurRes.value?.ok   ? await subCurRes.value.json()   : null
+        const unsubCurJson  = unsubCurRes.status  === 'fulfilled' && unsubCurRes.value?.ok ? await unsubCurRes.value.json() : null
+        const subPrevJson   = subPrevRes.status   === 'fulfilled' && subPrevRes.value?.ok  ? await subPrevRes.value.json()  : null
+        const unsubPrevJson = unsubPrevRes.status === 'fulfilled' && unsubPrevRes.value?.ok ? await unsubPrevRes.value.json() : null
+        const subCurCounts   = parseMetricCount(subCurJson)
+        const unsubCurCounts = parseMetricCount(unsubCurJson)
+        const subPrevCounts   = needsPrevYear ? parseMetricCount(subPrevJson)   : subCurCounts
+        const unsubPrevCounts = needsPrevYear ? parseMetricCount(unsubPrevJson) : unsubCurCounts
+        const curSub   = subCurCounts[month]       ?? null
+        const curUnsub = unsubCurCounts[month]     ?? null
+        const prvSub   = subPrevCounts[prevMonthKey]   ?? null
+        const prvUnsub = unsubPrevCounts[prevMonthKey] ?? null
+        if (curSub !== null && curUnsub !== null) {
+          newSubscribers = curSub
+          unsubscribes   = curUnsub
+          netGrowth      = curSub - curUnsub
+        }
+        if (prvSub !== null && prvUnsub !== null) {
+          prevNetGrowth = prvSub - prvUnsub
+        }
+      }
+
+      // YoY revenue: static data for months before current, current year live
+      let yoyRevenue: ReportData['yoyRevenue'] = []
+      const staticRows = YOY_STATIC_REVENUE[brand.klaviyo_account]
+      if (staticRows) {
+        const byYear: Record<number, { month: string; revenue: number }[]> = {}
+        for (const row of staticRows) {
+          if (row.month < month) {
+            const rowYear = parseInt(row.month.split('-')[0], 10)
+            if (!byYear[rowYear]) byYear[rowYear] = []
+            byYear[rowYear].push(row)
+          }
+        }
+        const pastEntries = Object.entries(byYear).map(([y, months]) => ({
+          year: parseInt(y, 10),
+          months: months.sort((a, b) => a.month.localeCompare(b.month)),
+        }))
+        const monthKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+        const [liveCampResult, ...liveFlowResults] = await Promise.allSettled([
+          fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+          ...monthKeys.map((mk: string) => fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month: mk }) })),
+        ])
+        const liveCampD = liveCampResult.status === 'fulfilled' && liveCampResult.value.ok ? await liveCampResult.value.json() : {}
+        const liveMonthMap: Record<string, number> = {}
+        for (const m of (liveCampD.monthly ?? []) as { month: string; revenue: number }[]) {
+          liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
+        }
+        for (const flowR of liveFlowResults) {
+          if (flowR.status === 'fulfilled' && flowR.value.ok) {
+            const fd = await flowR.value.json()
+            for (const m of (fd.monthly ?? []) as { month: string; revenue: number }[]) {
+              liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
+            }
+          }
+        }
+        yoyRevenue = [...pastEntries, {
+          year,
+          months: Object.entries(liveMonthMap)
+            .map(([m, revenue]) => ({ month: m, revenue }))
+            .sort((a, b) => a.month.localeCompare(b.month)),
+        }].sort((a, b) => a.year - b.year)
+      }
+
+      if (current === null && prev === null) { setLoading(false); return }
+
+      setData({
+        brandName:       brand.name,
+        brandColor:      brand.color ?? brandColor,
+        month,
+        current,
+        prev,
+        campaignRevenue: campMonth?.revenue ?? null,
+        flowRevenue:     flowMonth?.revenue ?? null,
+        monthlyCost,
+        roi,
+        campRows,
+        flowRows,
+        journalEntries:  journalEntries ?? [],
+        netGrowth,
+        newSubscribers,
+        unsubscribes,
+        prevNetGrowth,
+        yoyRevenue,
+      })
       setLoading(false)
     }
     load()

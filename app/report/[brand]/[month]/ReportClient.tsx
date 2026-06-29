@@ -205,16 +205,17 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             const staticRows = YOY_STATIC_REVENUE[brand.klaviyo_account]
             let pastEntries: ReportData['yoyRevenue']
             if (staticRows) {
-              const byYear: Record<number, { month: string; revenue: number }[]> = {}
+              const byYear = new Map<number, { month: string; revenue: number }[]>()
               for (const row of staticRows) {
-                const y = parseInt(row.month.split('-')[0], 10)
-                if (y < year) {
-                  if (!byYear[y]) byYear[y] = []
-                  byYear[y].push(row)
+                const rowYear = parseInt(row.month.split('-')[0], 10)
+                if (rowYear < year) {
+                  const bucket = byYear.get(rowYear) ?? []
+                  bucket.push(row)
+                  byYear.set(rowYear, bucket)
                 }
               }
-              pastEntries = Object.entries(byYear).map(([y, months]) => ({
-                year: parseInt(y, 10),
+              pastEntries = Array.from(byYear.entries()).map(([rowYear, months]) => ({
+                year: rowYear,
                 months: months.sort((a, b) => a.month.localeCompare(b.month)),
               }))
             } else {
@@ -431,19 +432,22 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           const freshYoy: ReportData['yoyRevenue'] = []
 
           if (staticRows) {
-            // Past years: group static rows by year (only years before current)
-            const byYear: Record<number, { month: string; revenue: number }[]> = {}
+            // Past years: group static rows by year (only years before current).
+            // Use Map to keep year keys as numbers — plain objects coerce numeric
+            // keys to strings, which caused year buckets to be miscounted.
+            const byYear = new Map<number, { month: string; revenue: number }[]>()
             for (const row of staticRows) {
-              const y = parseInt(row.month.split('-')[0], 10)
-              if (y < year) {
-                if (!byYear[y]) byYear[y] = []
-                byYear[y].push(row)
+              const rowYear = parseInt(row.month.split('-')[0], 10)
+              if (rowYear < year) {
+                const bucket = byYear.get(rowYear) ?? []
+                bucket.push(row)
+                byYear.set(rowYear, bucket)
               }
             }
-            console.log('[saveNotes] byYear after grouping (report year=', year, '):', JSON.stringify(Object.fromEntries(Object.entries(byYear).map(([y, ms]) => [y, ms.length]))))
-            for (const [y, months] of Object.entries(byYear)) {
+            console.log('[saveNotes] byYear after grouping (report year=', year, '):', JSON.stringify(Array.from(byYear.entries()).map(([y, ms]) => ({ year: y, count: ms.length }))))
+            for (const [rowYear, months] of byYear) {
               freshYoy.push({
-                year: parseInt(y, 10),
+                year: rowYear,
                 months: months.sort((a, b) => a.month.localeCompare(b.month)),
               })
             }

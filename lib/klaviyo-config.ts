@@ -73,7 +73,7 @@ export const KLAVIYO_BRAND_CONFIG: Record<string, {
       bounced:      'TBD',
       unsubscribed: 'TAps7r',
       subscribed:   'K7kGBK',
-      placedOrder:  'TBD',
+      placedOrder:  'HrsRmY',
     },
   },
 }

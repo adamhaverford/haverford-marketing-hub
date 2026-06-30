@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const ACCOUNT_KEY_MAP: Record<string, string | undefined> = {
-  'catnets-au':      process.env.KLAVIYO_API_KEY_CATNETS,
-  'haverford':       process.env.KLAVIYO_API_KEY_HAVERFORD,
-  'justprotools-au': process.env.KLAVIYO_API_KEY_JUSTPROTOOLS,
-  'gutzbusta-au':    process.env.KLAVIYO_API_KEY_GUTZBUSTA,
+  'catnets-au':         process.env.KLAVIYO_API_KEY_CATNETS,
+  'haverford':          process.env.KLAVIYO_API_KEY_HAVERFORD,
+  'justprotools-au':    process.env.KLAVIYO_API_KEY_JUSTPROTOOLS,
+  'gutzbusta-au':       process.env.KLAVIYO_API_KEY_GUTZBUSTA,
+  'aussie-grazers-au':  process.env.KLAVIYO_API_KEY_AUSSIEGRAZERS,
 }
 
 export async function POST(req: NextRequest) {

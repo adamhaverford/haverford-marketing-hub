@@ -63,4 +63,17 @@ export const KLAVIYO_BRAND_CONFIG: Record<string, {
       placedOrder:  'WtMedh',
     },
   },
+  'aussie-grazers-au': {
+    account: 'aussie-grazers-au',
+    metrics: {
+      opened:       'TBD',
+      clicked:      'TBD',
+      received:     'TBD',
+      spam:         'TBD',
+      bounced:      'TBD',
+      unsubscribed: 'TBD',
+      subscribed:   'TBD',
+      placedOrder:  'TBD',
+    },
+  },
 }

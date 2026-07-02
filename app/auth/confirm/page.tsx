@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type Stage = 'loading' | 'error' | 'form' | 'done'
+type FlowType = 'invite' | 'recovery'
 
 export default function ConfirmPage() {
   const router = useRouter()
   const [stage, setStage] = useState<Stage>('loading')
+  const [flowType, setFlowType] = useState<FlowType>('invite')
   const [tokenError, setTokenError] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -22,8 +24,10 @@ export default function ConfirmPage() {
     const searchParams = new URLSearchParams(window.location.search)
     const tokenHash = searchParams.get('token_hash')
     if (tokenHash) {
+      const pkceType = (searchParams.get('type') ?? 'invite') as FlowType
+      setFlowType(pkceType)
       supabase.auth
-        .verifyOtp({ token_hash: tokenHash, type: 'invite' })
+        .verifyOtp({ token_hash: tokenHash, type: pkceType })
         .then(({ error }) => {
           if (error) {
             setTokenError(error.message)
@@ -42,7 +46,8 @@ export default function ConfirmPage() {
     const refreshToken = hashParams.get('refresh_token')
     const type = hashParams.get('type')
 
-    if (accessToken && refreshToken && type === 'invite') {
+    if (accessToken && refreshToken && (type === 'invite' || type === 'recovery')) {
+      setFlowType(type as FlowType)
       supabase.auth
         .setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ error }) => {
@@ -104,7 +109,9 @@ export default function ConfirmPage() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-4">Haverford Marketing Hub</h1>
           <p className="text-blue-200 text-lg leading-relaxed">
-            You&apos;ve been invited to collaborate. Set a password to get started.
+            {flowType === 'recovery'
+              ? 'Reset your password to get back into your account.'
+              : "You’ve been invited to collaborate. Set a password to get started."}
           </p>
         </div>
       </div>
@@ -126,26 +133,40 @@ export default function ConfirmPage() {
           </div>
 
           {stage === 'loading' && (
-            <div className="text-center text-gray-500 text-sm">Verifying your invite&hellip;</div>
+            <div className="text-center text-gray-500 text-sm">Verifying&hellip;</div>
           )}
 
           {stage === 'error' && (
             <div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: '#1B2B4B' }}>Invalid invite</h2>
-              <p className="text-gray-500 mb-6">This invite link has expired or is invalid.</p>
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#1B2B4B' }}>
+                {flowType === 'recovery' ? 'Invalid or expired reset link' : 'Invalid invite'}
+              </h2>
+              <p className="text-gray-500 mb-6">
+                {flowType === 'recovery'
+                  ? 'This password reset link has expired or is invalid. Request a new one and try again.'
+                  : 'This invite link has expired or is invalid.'}
+              </p>
               <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 mb-6">
                 {tokenError}
               </div>
-              <p className="text-sm text-gray-500">
-                Contact your administrator to request a new invite.
-              </p>
+              {flowType === 'invite' && (
+                <p className="text-sm text-gray-500">
+                  Contact your administrator to request a new invite.
+                </p>
+              )}
             </div>
           )}
 
           {stage === 'form' && (
             <div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: '#1B2B4B' }}>Set your password</h2>
-              <p className="text-gray-500 mb-8">Choose a password to activate your account.</p>
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#1B2B4B' }}>
+                {flowType === 'recovery' ? 'Reset your password' : 'Set your password'}
+              </h2>
+              <p className="text-gray-500 mb-8">
+                {flowType === 'recovery'
+                  ? 'Choose a new password for your account.'
+                  : 'Choose a password to activate your account.'}
+              </p>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>

@@ -394,16 +394,14 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevYear = parseInt(prevMonthKey.split('-')[0])
       const needsPrevYear = prevYear !== year
 
-      // Campaigns: pass month so the route uses the expanded 14h start to capture
-      // AEST boundary campaigns. Flows: full-year call, find specific month after.
       const yearFetches = [
         fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
         needsPrevYear
           ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) })
           : Promise.resolve(null),
         needsPrevYear
-          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
+          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) })
           : Promise.resolve(null),
       ]
       const yearResults = await Promise.allSettled(yearFetches)

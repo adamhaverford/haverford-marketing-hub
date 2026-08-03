@@ -32,6 +32,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-03', revenue: 11570 },
     { month: '2026-04', revenue: 14691 },
     { month: '2026-05', revenue: 20204 },
+    { month: '2026-06', revenue: 22916 },
   ],
   'justprotools-au': [
     // 2024
@@ -66,6 +67,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-03', revenue: 19081 },
     { month: '2026-04', revenue: 30183 },
     { month: '2026-05', revenue: 25719 },
+    { month: '2026-06', revenue: 81704 },
   ],
   'gutzbusta-au': [
     // 2024
@@ -100,6 +102,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-03', revenue: 15644 },
     { month: '2026-04', revenue: 13535 },
     { month: '2026-05', revenue: 13017 },
+    { month: '2026-06', revenue: 21727 },
   ],
   'catnets-au': [
     // 2024
@@ -134,6 +137,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-03', revenue: 32989 },
     { month: '2026-04', revenue: 31603 },
     { month: '2026-05', revenue: 31719 },
+    { month: '2026-06', revenue: 48920 },
   ],
   'aussie-grazers-au': [
     // 2024
@@ -168,6 +172,6 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-03', revenue: 1346 },
     { month: '2026-04', revenue: 1585 },
     { month: '2026-05', revenue: 0 },
-    { month: '2026-06', revenue: 3988 },
+    { month: '2026-06', revenue: 4437 },
   ],
 }

@@ -1,0 +1,51 @@
+export const AUSSIE_GRAZERS_SECTIONS = [
+  {
+    id: 'intro',
+    label: '1. Intro',
+    description: 'Opening section — set the tone for the month',
+    placeholder: "e.g. Welcome back — here's what's new this month",
+    tip: null,
+  },
+  {
+    id: 'education_tips',
+    label: '2. Education/Tips Block',
+    description: 'Practical advice or how-to content',
+    placeholder: 'e.g. Feeding tips for cold, wet weather',
+    tip: null,
+  },
+  {
+    id: 'did_you_know',
+    label: '3. Did You Know?',
+    description: 'A fun or surprising fact',
+    placeholder: "e.g. Did you know horses can't vomit?",
+    tip: null,
+  },
+  {
+    id: 'customer_review',
+    label: '4. Customer Review',
+    description: 'A customer testimonial or review highlight',
+    placeholder: 'e.g. Feature a 5-star review from this month',
+    tip: null,
+  },
+  {
+    id: 'horse_of_month',
+    label: '5. Horse of the Month Winner',
+    description: "Feature this month's competition winner",
+    placeholder: "e.g. Announce June's Horse of the Month winner",
+    tip: null,
+  },
+  {
+    id: 'upcoming_events',
+    label: '6. Upcoming Events',
+    description: 'Events, shows, or seasonal dates coming up',
+    placeholder: 'e.g. Upcoming regional show dates',
+    tip: null,
+  },
+  {
+    id: 'misc',
+    label: '7. Misc',
+    description: "Anything that doesn't fit the above sections",
+    placeholder: 'e.g. Add a seasonal banner',
+    tip: null,
+  },
+] as const

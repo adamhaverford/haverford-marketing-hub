@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import MonthSection from '@/components/planning/MonthSection'
 import JPTPromoSection from '@/components/planning/JPTPromoSection'
+import AussieGrazersPromoSection from '@/components/planning/AussieGrazersPromoSection'
 import { formatMonthLabel } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
 
@@ -201,6 +202,14 @@ export default async function MonthDetailPage({ params }: Props) {
         {/* Promotional section */}
         {brand.name === 'Just Pro Tools' ? (
           <JPTPromoSection
+            brandId={brand.id}
+            month={params.month}
+            topics={buildTopics('promotional')}
+            designs={buildDesigns('promotional')}
+            role={role}
+          />
+        ) : brand.name === 'Aussie Grazers' ? (
+          <AussieGrazersPromoSection
             brandId={brand.id}
             month={params.month}
             topics={buildTopics('promotional')}

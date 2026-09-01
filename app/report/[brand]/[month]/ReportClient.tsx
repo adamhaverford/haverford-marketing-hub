@@ -252,16 +252,24 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const needsPrevYear = prevYear !== year
 
       const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) }),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        needsPrevYear
+          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
+          : Promise.resolve(null),
+        needsPrevYear
+          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
+          : Promise.resolve(null),
       ])
 
-      const campData     = campRes.status     === 'fulfilled' && campRes.value.ok     ? await campRes.value.json()     : {}
-      const flowData     = flowRes.status     === 'fulfilled' && flowRes.value.ok     ? await flowRes.value.json()     : {}
-      const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
-      const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
+      const campData     = campRes.status === 'fulfilled' && campRes.value.ok ? await campRes.value.json() : {}
+      const flowData     = flowRes.status === 'fulfilled' && flowRes.value.ok ? await flowRes.value.json() : {}
+      const prevCampData = needsPrevYear
+        ? (prevCampRes.status === 'fulfilled' && prevCampRes.value?.ok ? await prevCampRes.value.json() : {})
+        : campData
+      const prevFlowData = needsPrevYear
+        ? (prevFlowRes.status === 'fulfilled' && prevFlowRes.value?.ok ? await prevFlowRes.value.json() : {})
+        : flowData
 
       const loadHasErrors =
         (campData.errors?.length > 0) ||
@@ -408,13 +416,13 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const needsPrevYear = prevYear !== year
 
       const yearFetches = [
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
         needsPrevYear
-          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) })
+          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
           : Promise.resolve(null),
         needsPrevYear
-          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear, month: prevMonthKey }) })
+          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
           : Promise.resolve(null),
       ]
       const yearResults = await Promise.allSettled(yearFetches)

@@ -142,6 +142,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   const [notesSaved, setNotesSaved] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [snapshotDate, setSnapshotDate] = useState<string | null>(null)
+  const [refreshWarning, setRefreshWarning] = useState<string | null>(null)
 
   const year = parseInt(month.split('-')[0])
   const prevMonthKey = useMemo(() => {
@@ -261,6 +262,17 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const flowData     = flowRes.status     === 'fulfilled' && flowRes.value.ok     ? await flowRes.value.json()     : {}
       const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value.ok ? await prevCampRes.value.json() : {}
       const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value.ok ? await prevFlowRes.value.json() : {}
+
+      const loadHasErrors =
+        (campData.errors?.length > 0) ||
+        (flowData.errors?.length > 0) ||
+        (needsPrevYear && prevCampData.errors?.length > 0) ||
+        (needsPrevYear && prevFlowData.errors?.length > 0)
+      if (loadHasErrors) {
+        setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')
+        setLoading(false)
+        return
+      }
 
       const campMonth     = findMonth(campData, month)
       const flowMonth     = findMonth(flowData, month)
@@ -384,6 +396,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
   async function refresh() {
     if (!isAuthed) return
     setIsRefreshing(true)
+    setRefreshWarning(null)
     try {
       const res = await fetch(`/api/report-notes?brandId=${brandId}&month=${month}`)
       if (!res.ok) return
@@ -417,6 +430,16 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
       // If all primary fetches failed, keep existing state unchanged
       if (!campData && !flowData) return
+
+      const refreshHasErrors =
+        (campData?.errors?.length > 0) ||
+        (flowData?.errors?.length > 0) ||
+        (needsPrevYear && prevCampData?.errors?.length > 0) ||
+        (needsPrevYear && prevFlowData?.errors?.length > 0)
+      if (refreshHasErrors) {
+        setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')
+        return
+      }
 
       const campMonth     = campData     ? findMonth(campData,     month)        : null
       const flowMonth     = flowData     ? findMonth(flowData,     month)        : null
@@ -706,6 +729,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
                   </button>
                 )}
               </div>
+              {refreshWarning && (
+                <p className="text-xs text-amber-600 mt-1 px-1">⚠️ {refreshWarning}</p>
+              )}
               <select
                 value={month}
                 onChange={e => router.push(`/report/${brandId}/${e.target.value}`)}

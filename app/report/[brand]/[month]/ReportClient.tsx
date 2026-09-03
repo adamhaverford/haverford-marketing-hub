@@ -198,8 +198,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         if (brand?.klaviyo_account) {
           const headers = { 'Content-Type': 'application/json' }
           const [campResult, flowResult] = await Promise.allSettled([
-            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
-            fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
+            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+            fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
           ])
           const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
           const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}

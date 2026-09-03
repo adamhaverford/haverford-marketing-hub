@@ -251,7 +251,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevYear = parseInt(prevMonthKey.split('-')[0])
       const needsPrevYear = prevYear !== year
 
-      const [campRes, flowRes, prevCampRes, prevFlowRes] = await Promise.allSettled([
+      const [campRes, flowRes, prevCampRes, prevFlowRes, flowRowsRes] = await Promise.allSettled([
         fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
         fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
         needsPrevYear
@@ -260,6 +260,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         needsPrevYear
           ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
           : Promise.resolve(null),
+        fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
       ])
 
       const campData     = campRes.status === 'fulfilled' && campRes.value.ok ? await campRes.value.json() : {}
@@ -270,12 +271,14 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevFlowData = needsPrevYear
         ? (prevFlowRes.status === 'fulfilled' && prevFlowRes.value?.ok ? await prevFlowRes.value.json() : {})
         : flowData
+      const flowRowsData = flowRowsRes.status === 'fulfilled' && flowRowsRes.value?.ok ? await flowRowsRes.value.json() : {}
 
       const loadHasErrors =
         (campData.errors?.length > 0) ||
         (flowData.errors?.length > 0) ||
         (needsPrevYear && prevCampData.errors?.length > 0) ||
-        (needsPrevYear && prevFlowData.errors?.length > 0)
+        (needsPrevYear && prevFlowData.errors?.length > 0) ||
+        (flowRowsData.errors?.length > 0)
       if (loadHasErrors) {
         setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')
         setLoading(false)
@@ -291,7 +294,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         if (!c.sentAt) return false
         return isInMonthAEST(c.sentAt, month)
       })
-      const flowRows: FlowRow[] = [...(flowData.flows ?? [])]
+      const flowRows: FlowRow[] = [...(flowRowsData.flows ?? [])]
         .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
         .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
         .slice(0, 6)
@@ -424,6 +427,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         needsPrevYear
           ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
           : Promise.resolve(null),
+        fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
       ]
       const yearResults = await Promise.allSettled(yearFetches)
 
@@ -435,6 +439,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevFlowData = needsPrevYear
         ? (yearResults[3].status === 'fulfilled' && yearResults[3].value?.ok ? await yearResults[3].value.json() : null)
         : flowData
+      const flowRowsData = yearResults[4].status === 'fulfilled' && yearResults[4].value?.ok ? await yearResults[4].value.json() : null
 
       // If all primary fetches failed, keep existing state unchanged
       if (!campData && !flowData) return
@@ -443,7 +448,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         (campData?.errors?.length > 0) ||
         (flowData?.errors?.length > 0) ||
         (needsPrevYear && prevCampData?.errors?.length > 0) ||
-        (needsPrevYear && prevFlowData?.errors?.length > 0)
+        (needsPrevYear && prevFlowData?.errors?.length > 0) ||
+        (flowRowsData?.errors?.length > 0)
       if (refreshHasErrors) {
         setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')
         return
@@ -459,7 +465,7 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         return isInMonthAEST(c.sentAt, month)
       })
 
-      const flowRows: FlowRow[] = [...(flowData?.flows ?? [])]
+      const flowRows: FlowRow[] = [...(flowRowsData?.flows ?? [])]
         .filter((f: FlowRow) => (f.revenue ?? 0) > 0)
         .sort((a: FlowRow, b: FlowRow) => (b.revenue ?? 0) - (a.revenue ?? 0))
         .slice(0, 6)

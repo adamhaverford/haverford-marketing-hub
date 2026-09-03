@@ -106,6 +106,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-05', revenue: 13017 },
     { month: '2026-06', revenue: 21727 },
     { month: '2026-07', revenue: 12413 },
+    { month: '2026-08', revenue: 9450 },
   ],
   'catnets-au': [
     // 2024

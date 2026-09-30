@@ -34,7 +34,7 @@ function makeHeaders(apiKey: string) {
 
 const MAX_RETRY_WAIT_MS = 55000
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 5): Promise<Response> {
   let res = await fetch(url, options)
   let attempts = 1
   while (res.status === 429 && attempts < maxRetries) {

@@ -30,7 +30,7 @@ function makeHeaders(apiKey: string) {
   }
 }
 
-const MAX_RETRY_WAIT_MS = 9000
+const MAX_RETRY_WAIT_MS = 55000
 
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
   let res = await fetch(url, options)
@@ -47,7 +47,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
     const requestedMs = Math.max(headerMs, bodyMs)
     const waitMs = Math.min(requestedMs || 8000, MAX_RETRY_WAIT_MS)
     if (requestedMs > MAX_RETRY_WAIT_MS) {
-      console.log(`[fetchWithRetry] 429 — Klaviyo requested ${Math.round(requestedMs / 1000)}s, capping wait at 9s`)
+      console.log(`[fetchWithRetry] 429 — Klaviyo requested ${Math.round(requestedMs / 1000)}s, capping wait at ${MAX_RETRY_WAIT_MS / 1000}s`)
     } else {
       console.log(`[fetchWithRetry] 429 throttled — waiting ${waitMs}ms before retry ${attempts}/${maxRetries - 1}`)
     }

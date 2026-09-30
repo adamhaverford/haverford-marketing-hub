@@ -194,12 +194,12 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         setLoading(false)
 
         // Background: fetch only the current report month live and merge with static
-        // past-year data. Two calls instead of 13 — avoids rate limiting.
+        // past-year data. Two single-month calls — avoids rate limiting.
         if (brand?.klaviyo_account) {
           const headers = { 'Content-Type': 'application/json' }
           const [campResult, flowResult] = await Promise.allSettled([
-            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-            fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
+            fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+            fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
           ])
           const campD = campResult.status === 'fulfilled' && campResult.value.ok ? await campResult.value.json() : {}
           const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
@@ -251,33 +251,27 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevYear = parseInt(prevMonthKey.split('-')[0])
       const needsPrevYear = prevYear !== year
 
+      // Single-month calls: conversion-date methodology matches Klaviyo's dashboard.
+      // prev month always fetched separately (no full-year reuse needed).
       const [campRes, flowRes, prevCampRes, prevFlowRes, flowRowsRes] = await Promise.allSettled([
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-        needsPrevYear
-          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
-          : Promise.resolve(null),
-        needsPrevYear
-          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
-          : Promise.resolve(null),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
         fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
       ])
 
       const campData     = campRes.status === 'fulfilled' && campRes.value.ok ? await campRes.value.json() : {}
       const flowData     = flowRes.status === 'fulfilled' && flowRes.value.ok ? await flowRes.value.json() : {}
-      const prevCampData = needsPrevYear
-        ? (prevCampRes.status === 'fulfilled' && prevCampRes.value?.ok ? await prevCampRes.value.json() : {})
-        : campData
-      const prevFlowData = needsPrevYear
-        ? (prevFlowRes.status === 'fulfilled' && prevFlowRes.value?.ok ? await prevFlowRes.value.json() : {})
-        : flowData
+      const prevCampData = prevCampRes.status === 'fulfilled' && prevCampRes.value?.ok ? await prevCampRes.value.json() : {}
+      const prevFlowData = prevFlowRes.status === 'fulfilled' && prevFlowRes.value?.ok ? await prevFlowRes.value.json() : {}
       const flowRowsData = flowRowsRes.status === 'fulfilled' && flowRowsRes.value?.ok ? await flowRowsRes.value.json() : {}
 
       const loadHasErrors =
         (campData.errors?.length > 0) ||
         (flowData.errors?.length > 0) ||
-        (needsPrevYear && prevCampData.errors?.length > 0) ||
-        (needsPrevYear && prevFlowData.errors?.length > 0) ||
+        (prevCampData.errors?.length > 0) ||
+        (prevFlowData.errors?.length > 0) ||
         (flowRowsData.errors?.length > 0)
       if (loadHasErrors) {
         setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')
@@ -341,7 +335,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
         }
       }
 
-      // YoY revenue: static data for months before current, current year live
+      // YoY revenue: static data for past years/months + live current month only.
+      // campMonth/flowMonth already fetched above — no extra API calls needed.
       let yoyRevenue: ReportData['yoyRevenue'] = []
       const staticRows = YOY_STATIC_REVENUE[brand.klaviyo_account]
       if (staticRows) {
@@ -357,25 +352,18 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
           year: parseInt(y, 10),
           months: months.sort((a, b) => a.month.localeCompare(b.month)),
         }))
-        const [liveCampResult, liveFlowResult] = await Promise.allSettled([
-          fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-          fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-        ])
-        const liveCampD = liveCampResult.status === 'fulfilled' && liveCampResult.value.ok ? await liveCampResult.value.json() : {}
-        const liveFlowD = liveFlowResult.status === 'fulfilled' && liveFlowResult.value.ok ? await liveFlowResult.value.json() : {}
-        const liveMonthMap: Record<string, number> = {}
-        for (const m of (liveCampD.monthly ?? []) as { month: string; revenue: number }[]) {
-          liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
-        }
-        for (const m of (liveFlowD.monthly ?? []) as { month: string; revenue: number }[]) {
-          liveMonthMap[m.month] = (liveMonthMap[m.month] ?? 0) + (m.revenue ?? 0)
-        }
+        const liveRevenue = (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0)
+        const staticCurrentYear = staticRows
+          .filter(row => row.month.startsWith(`${year}-`) && row.month < month)
+          .sort((a, b) => a.month.localeCompare(b.month))
         yoyRevenue = [...pastEntries, {
           year,
-          months: Object.entries(liveMonthMap)
-            .map(([m, revenue]) => ({ month: m, revenue }))
-            .sort((a, b) => a.month.localeCompare(b.month)),
+          months: [...staticCurrentYear, { month, revenue: liveRevenue }],
         }].sort((a, b) => a.year - b.year)
+      } else {
+        // No static data: just current month live
+        const liveRevenue = (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0)
+        yoyRevenue = [{ year, months: [{ month, revenue: liveRevenue }] }]
       }
 
       if (current === null && prev === null) { setLoading(false); return }
@@ -418,28 +406,21 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const prevYear = parseInt(prevMonthKey.split('-')[0])
       const needsPrevYear = prevYear !== year
 
-      const yearFetches = [
-        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year }) }),
-        needsPrevYear
-          ? fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
-          : Promise.resolve(null),
-        needsPrevYear
-          ? fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year: prevYear }) })
-          : Promise.resolve(null),
+      // Single-month calls — prev month always fetched separately.
+      const monthFetches = [
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),
+        fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
+        fetch('/api/klaviyo-flows',     { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month: prevMonthKey }) }),
         fetch('/api/klaviyo-flows', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, year, month }) }),
       ]
-      const yearResults = await Promise.allSettled(yearFetches)
+      const monthResults = await Promise.allSettled(monthFetches)
 
-      const campData     = yearResults[0].status === 'fulfilled' && yearResults[0].value?.ok ? await yearResults[0].value.json() : null
-      const flowData     = yearResults[1].status === 'fulfilled' && yearResults[1].value?.ok ? await yearResults[1].value.json() : null
-      const prevCampData = needsPrevYear
-        ? (yearResults[2].status === 'fulfilled' && yearResults[2].value?.ok ? await yearResults[2].value.json() : null)
-        : campData
-      const prevFlowData = needsPrevYear
-        ? (yearResults[3].status === 'fulfilled' && yearResults[3].value?.ok ? await yearResults[3].value.json() : null)
-        : flowData
-      const flowRowsData = yearResults[4].status === 'fulfilled' && yearResults[4].value?.ok ? await yearResults[4].value.json() : null
+      const campData     = monthResults[0].status === 'fulfilled' && monthResults[0].value?.ok ? await monthResults[0].value.json() : null
+      const flowData     = monthResults[1].status === 'fulfilled' && monthResults[1].value?.ok ? await monthResults[1].value.json() : null
+      const prevCampData = monthResults[2].status === 'fulfilled' && monthResults[2].value?.ok ? await monthResults[2].value.json() : null
+      const prevFlowData = monthResults[3].status === 'fulfilled' && monthResults[3].value?.ok ? await monthResults[3].value.json() : null
+      const flowRowsData = monthResults[4].status === 'fulfilled' && monthResults[4].value?.ok ? await monthResults[4].value.json() : null
 
       // If all primary fetches failed, keep existing state unchanged
       if (!campData && !flowData) return
@@ -447,8 +428,8 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
       const refreshHasErrors =
         (campData?.errors?.length > 0) ||
         (flowData?.errors?.length > 0) ||
-        (needsPrevYear && prevCampData?.errors?.length > 0) ||
-        (needsPrevYear && prevFlowData?.errors?.length > 0) ||
+        (prevCampData?.errors?.length > 0) ||
+        (prevFlowData?.errors?.length > 0) ||
         (flowRowsData?.errors?.length > 0)
       if (refreshHasErrors) {
         setRefreshWarning('Some data failed to load from Klaviyo (rate limited) — refresh again before saving.')

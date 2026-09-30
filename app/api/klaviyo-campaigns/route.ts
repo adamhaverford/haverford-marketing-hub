@@ -115,8 +115,23 @@ function toSydneyMonth(utcDateStr: string): string {
   return `${year}-${month}`
 }
 
+// Returns the UTC ISO string for midnight Sydney time on the 1st of the given month.
+// Uses AEDT (UTC+11) Oct–Apr, AEST (UTC+10) otherwise, matching Australia/Sydney DST rules.
+function sydneyMidnightUTC(y: number, m: number): string {
+  const refDate   = new Date(Date.UTC(y, m - 1, 1))
+  const octFirst  = new Date(Date.UTC(y, 9, 1))
+  const aedtStart = new Date(Date.UTC(y, 9, 1 + (7 - octFirst.getUTCDay()) % 7))
+  const aprFirst  = new Date(Date.UTC(y, 3, 1))
+  const aedtEnd   = new Date(Date.UTC(y, 3, 1 + (aprFirst.getUTCDay() === 0 ? 0 : 7 - aprFirst.getUTCDay()) % 7))
+  const isAEDT    = refDate >= aedtStart || refDate < aedtEnd
+  const utcMs     = Date.UTC(y, m - 1, 1) - (isAEDT ? 11 : 10) * 3_600_000
+  return new Date(utcMs).toISOString().slice(0, 19)
+}
+
 export async function POST(req: NextRequest) {
-  const { account, year, month } = await req.json()
+  const { account, year: yearParam, month } = await req.json()
+  // year can be derived from month when only month is supplied
+  const year: number = month ? parseInt((month as string).split('-')[0], 10) : (yearParam as number)
 
   const apiKey = ACCOUNT_KEY_MAP[account]
   if (!apiKey) {
@@ -133,30 +148,42 @@ export async function POST(req: NextRequest) {
 
   const headers = makeHeaders(apiKey)
 
-  // ── 1. Fetch all campaigns for the year (paginated) ──────────
-  let startDate: string
-  let endDate: string
+  // ── 1. Fetch campaigns and set date boundaries ────────────────
+  //
+  // In month-mode (month param supplied) we use conversion-date methodology to
+  // match Klaviyo's dashboard: the values-report timeframe is AEST-correct month
+  // boundaries, and the campaign list goes back 45 days so attribution carry-forward
+  // from the previous month is captured.  In year-mode the send-date approach is
+  // kept (used for the full-year YoY chart).
+  let listStartDate: string   // campaign list filter start
+  let listEndDate:   string   // campaign list filter end
+  let timeframeStart: string  // values-report timeframe start
+  let timeframeEnd:   string  // values-report timeframe end
 
   if (month) {
-    // Shift start back 14h (max AU offset) to capture campaigns sent in the previous
-    // UTC day that belong to the current AEST month (e.g. 2026-05-31T22:45 UTC = 2026-06-01 AEST).
     const parts      = (month as string).split('-')
     const monthYear  = parseInt(parts[0], 10)
     const monthIndex = parseInt(parts[1], 10)
-    const startUTC   = new Date(Date.UTC(monthYear, monthIndex - 1, 1, 0, 0, 0))
-    startUTC.setUTCHours(startUTC.getUTCHours() - 14)
-    startDate = startUTC.toISOString().slice(0, 19)
     const nextYear   = monthIndex === 12 ? monthYear + 1 : monthYear
     const nextMonth  = monthIndex === 12 ? 1 : monthIndex + 1
-    endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00`
+
+    // AEST/AEDT-correct midnight boundaries for the conversion window
+    timeframeStart = sydneyMidnightUTC(monthYear, monthIndex)
+    timeframeEnd   = sydneyMidnightUTC(nextYear, nextMonth)
+
+    // Expand list start 45 days back so August campaigns that drove September
+    // conversions are included in the values-report query.
+    const listStartMs = new Date(timeframeStart).getTime() - 45 * 24 * 3_600_000
+    listStartDate = new Date(listStartMs).toISOString().slice(0, 19)
+    listEndDate   = timeframeEnd
   } else {
-    startDate = `${year}-01-01T00:00:00`
-    endDate   = `${year + 1}-01-01T00:00:00`
+    listStartDate  = `${year - 1}-12-01T00:00:00`
+    listEndDate    = `${year + 1}-01-01T00:00:00`
+    timeframeStart = `${year}-01-01T00:00:00`
+    timeframeEnd   = `${year + 1}-01-01T00:00:00`
   }
 
-  const listFilter = month
-    ? `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${startDate}),less-than(scheduled_at,${endDate}))`
-    : `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${year - 1}-12-01T00:00:00),less-than(scheduled_at,${endDate}))`
+  const listFilter = `and(equals(messages.channel,'email'),greater-or-equal(scheduled_at,${listStartDate}),less-than(scheduled_at,${listEndDate}))`
 
   const allCampaigns: RawCampaign[] = []
   let nextUrl: string | null =
@@ -206,13 +233,13 @@ export async function POST(req: NextRequest) {
         `[campaigns] batch ${i}: sending ${batch.length} IDs` +
         (batch.includes(EASTER_ID) ? ` *** contains easter26_ends (${EASTER_ID}) ***` : ''),
       )
-      if (i === 0) console.log(`[campaigns] timeframe: ${startDate} → ${endDate}`)
+      if (i === 0) console.log(`[campaigns] timeframe: ${timeframeStart} → ${timeframeEnd}`)
 
       const body = JSON.stringify({
         data: {
           type: 'campaign-values-report',
           attributes: {
-            timeframe: { start: startDate, end: endDate },
+            timeframe: { start: timeframeStart, end: timeframeEnd },
             filter: campaignFilter(batch),
             statistics: CAMPAIGN_STATISTICS,
             conversion_metric_id: config.metrics.placedOrder,
@@ -338,15 +365,29 @@ export async function POST(req: NextRequest) {
     m.clicks     += stats.clicks_unique        ?? 0
     m.unsubs     += stats.unsubscribes         ?? 0
     m.spam       += stats.spam_complaints      ?? 0
-    // revenue_per_recipient × delivered = total revenue for this campaign
     m.revenue    += (stats.revenue_per_recipient ?? 0) * del
     m.recipients  = m.delivered + m.bounces
   }
 
+  // In month-mode: override revenue with the conversion-date total (sum of ALL campaigns
+  // in the values-report, including carry-forward from the previous month).
+  // Engagement stats (open/click/unsub) stay send-date bucketed — only revenue changes.
+  if (month) {
+    const cdRevenue = Object.values(statsMap).reduce((sum, s) => {
+      return sum + (s.revenue_per_recipient ?? 0) * (s.delivered ?? 0)
+    }, 0)
+    if (!monthMap[month as string]) {
+      monthMap[month as string] = { recipients: 0, opens: 0, clicks: 0, unsubs: 0, bounces: 0, spam: 0, delivered: 0, revenue: 0 }
+    }
+    monthMap[month as string].revenue = cdRevenue
+  }
+
   const monthly: MonthlyRow[] = Object.entries(monthMap)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, m]) => ({
-      month,
+    // In month-mode return only the target month; year-mode returns all months.
+    .filter(([mk]) => !month || mk === (month as string))
+    .map(([mk, m]) => ({
+      month: mk,
       recipients: m.recipients,
       openRate:   pct(m.opens,   m.delivered),
       clickRate:  pct(m.clicks,  m.delivered),
@@ -357,7 +398,7 @@ export async function POST(req: NextRequest) {
       revenue:    m.revenue,
     }))
 
-  console.log('[campaigns] April monthly:', JSON.stringify(monthly.find(m => m.month === '2026-04')))
+  console.log('[campaigns] monthly output:', JSON.stringify(monthly))
 
   return NextResponse.json({ campaigns, monthly, ...(batchErrors.length > 0 && { errors: batchErrors }) })
 }

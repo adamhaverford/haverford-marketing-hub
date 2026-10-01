@@ -301,6 +301,14 @@ export async function POST(req: NextRequest) {
   console.log('[campaigns] statsMap contains easter26_ends:', EASTER_ID in statsMap)
   console.log('[campaigns] conversion_metric_id being used:', config.metrics.placedOrder)
 
+  // ── statsMap: all campaigns with delivered + revenue ─────────
+  console.log('[campaigns] all campaigns in statsMap:',
+    allCampaigns.map(c => {
+      const s = statsMap[c.id]
+      return `${c.attributes.name} (${c.id}) | scheduled_at: ${c.attributes.scheduled_at} | send_time: ${c.attributes.send_time} | delivered: ${s?.delivered ?? 'N/A'} | rev_ppr: ${s?.revenue_per_recipient ?? 'N/A'}`
+    }).join('\n')
+  )
+
   // ── 3. Assemble campaign rows ────────────────────────────────
   const campaigns: CampaignRow[] = allCampaigns.map(c => {
     const sentAt  = c.attributes.scheduled_at ?? c.attributes.send_time ?? ''

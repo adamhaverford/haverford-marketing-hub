@@ -195,7 +195,10 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
 
         // Background: fetch only the current report month live and merge with static
         // past-year data. Two single-month calls — avoids rate limiting.
-        if (brand?.klaviyo_account) {
+        // Only run for authenticated users — snapshot viewers should see the saved
+        // yoyRevenue as-is; a live fetch that returns 0 (rate-limited etc.) would
+        // overwrite the correct saved value with $0.
+        if (brand?.klaviyo_account && user) {
           const headers = { 'Content-Type': 'application/json' }
           const [campResult, flowResult] = await Promise.allSettled([
             fetch('/api/klaviyo-campaigns', { method: 'POST', headers, body: JSON.stringify({ account: brand.klaviyo_account, month }) }),

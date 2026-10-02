@@ -70,6 +70,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-05', revenue: 25719 },
     { month: '2026-06', revenue: 81704 },
     { month: '2026-07', revenue: 29836 },
+    { month: '2026-08', revenue: 23230 },
   ],
   'gutzbusta-au': [
     // 2024

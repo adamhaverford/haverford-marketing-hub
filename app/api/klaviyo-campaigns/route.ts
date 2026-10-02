@@ -167,15 +167,21 @@ export async function POST(req: NextRequest) {
     const nextYear   = monthIndex === 12 ? monthYear + 1 : monthYear
     const nextMonth  = monthIndex === 12 ? 1 : monthIndex + 1
 
-    // AEST/AEDT-correct midnight boundaries for the conversion window
+    // AEST/AEDT-correct midnight boundaries for the conversion window.
+    // timeframeEnd extends 5 days past month-end to capture Klaviyo's attribution
+    // window for campaigns sent in the last few days of the month (matching how
+    // Klaviyo's own dashboard attributes late-month conversions to that month).
     timeframeStart = sydneyMidnightUTC(monthYear, monthIndex)
-    timeframeEnd   = sydneyMidnightUTC(nextYear, nextMonth)
+    const monthEnd = sydneyMidnightUTC(nextYear, nextMonth)
+    timeframeEnd   = new Date(new Date(monthEnd).getTime() + 5 * 24 * 3_600_000).toISOString().slice(0, 19)
 
     // Expand list start 45 days back so August campaigns that drove September
     // conversions are included in the values-report query.
+    // listEndDate stays at the plain month boundary so October campaigns don't
+    // appear in the September campaign list.
     const listStartMs = new Date(timeframeStart).getTime() - 45 * 24 * 3_600_000
     listStartDate = new Date(listStartMs).toISOString().slice(0, 19)
-    listEndDate   = timeframeEnd
+    listEndDate   = monthEnd
   } else {
     listStartDate  = `${year - 1}-12-01T00:00:00`
     listEndDate    = `${year + 1}-01-01T00:00:00`

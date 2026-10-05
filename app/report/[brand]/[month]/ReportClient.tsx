@@ -229,15 +229,22 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             } else {
               pastEntries = (snapshot.yoyRevenue ?? []).filter((e: { year: number }) => e.year !== year)
             }
-            // Current year: static months before the report month + live current month
+            // Current year: static months before the report month + live current month.
+            // If liveRevenue is 0 (e.g. flows suspended/rate-limited), fall back to the
+            // snapshot's saved value so we don't overwrite a correct number with $0.
             const staticCurrentYear = staticRows
               ? staticRows
                   .filter(row => row.month.startsWith(`${year}-`) && row.month < month)
                   .sort((a, b) => a.month.localeCompare(b.month))
               : []
+            const snapshotMonthRevenue = (snapshot.yoyRevenue ?? [])
+              .find((e: { year: number }) => e.year === year)
+              ?.months?.find((m: { month: string }) => m.month === month)
+              ?.revenue ?? 0
+            const currentMonthRevenue = liveRevenue > 0 ? liveRevenue : snapshotMonthRevenue
             const liveEntry = {
               year,
-              months: [...staticCurrentYear, { month, revenue: liveRevenue }],
+              months: [...staticCurrentYear, { month, revenue: currentMonthRevenue }],
             }
             const merged = [...pastEntries, liveEntry].sort((a: { year: number }, b: { year: number }) => a.year - b.year)
             console.log('[load] yoyRevenue after merge:', JSON.stringify(merged.map(e => ({ year: e.year, months: e.months.length }))))

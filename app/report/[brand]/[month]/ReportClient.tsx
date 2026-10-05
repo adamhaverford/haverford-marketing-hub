@@ -241,7 +241,9 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
               .find((e: { year: number }) => e.year === year)
               ?.months?.find((m: { month: string }) => m.month === month)
               ?.revenue ?? 0
-            const currentMonthRevenue = liveRevenue > 0 ? liveRevenue : snapshotMonthRevenue
+            // Take the higher of live vs snapshot — if flows are suspended the live
+            // fetch returns campaigns-only, which is less than the correct saved total.
+            const currentMonthRevenue = Math.max(liveRevenue, snapshotMonthRevenue)
             const liveEntry = {
               year,
               months: [...staticCurrentYear, { month, revenue: currentMonthRevenue }],

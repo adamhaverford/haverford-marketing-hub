@@ -596,11 +596,17 @@ export default function ReportClient({ brandId, month, brandColor }: Props) {
             const flowD = flowResult.status === 'fulfilled' && flowResult.value.ok ? await flowResult.value.json() : {}
             const campMonth = (campD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
             const flowMonth = (flowD.monthly as { month: string; revenue: number }[] ?? []).find(m => m.month === month)
+            // Prefer the displayed totalRevenue (campaigns + flows already summed,
+            // including any overrides) over re-summing the live fetch, which can miss
+            // flows when the Klaviyo account is suspended or rate-limited.
+            const liveTotal = data?.totalRevenue != null && data.totalRevenue > 0
+              ? data.totalRevenue
+              : (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0)
             freshYoy.push({
               year,
               months: [
                 ...staticCurrentYear,
-                { month, revenue: (campMonth?.revenue ?? 0) + (flowMonth?.revenue ?? 0) },
+                { month, revenue: liveTotal },
               ],
             })
           } else {

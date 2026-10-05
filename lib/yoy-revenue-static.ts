@@ -146,6 +146,7 @@ export const YOY_STATIC_REVENUE: Record<string, { month: string; revenue: number
     { month: '2026-06', revenue: 48920 },
     { month: '2026-07', revenue: 35761 },
     { month: '2026-08', revenue: 26995 },
+    { month: '2026-09', revenue: 45702 },
   ],
   'aussie-grazers-au': [
     // 2024

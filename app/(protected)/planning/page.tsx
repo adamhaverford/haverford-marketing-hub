@@ -10,7 +10,7 @@ export default async function PlanningPage() {
 
   const { data: brands } = await supabase
     .from('brands')
-    .select('id, name, color, description, klaviyo_account')
+    .select('id, name, color, description, klaviyo_account, schedule_only')
     .eq('active', true)
     .order('name')
 

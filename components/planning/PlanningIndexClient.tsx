@@ -10,6 +10,7 @@ interface Brand {
   color: string
   description: string | null
   klaviyo_account: string | null
+  schedule_only: boolean
 }
 
 interface ScheduleEntry {
@@ -167,7 +168,7 @@ export default function PlanningIndexClient({ brands }: Props) {
       {/* Brands tab */}
       {activeTab === 'brands' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-3xl">
-          {brands.map(brand => (
+          {brands.filter(b => !b.schedule_only).map(brand => (
             <BrandCard key={brand.id} brand={brand} />
           ))}
         </div>
